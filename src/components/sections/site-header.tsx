@@ -1,0 +1,107 @@
+"use client";
+
+import { Moon, Square } from "lucide-react";
+import { usePlayer } from "@/store/player";
+import { getSoundscape } from "@/lib/soundscapes";
+
+function formatRemaining(sec: number) {
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+export function EqualizerBars({ active }: { active: boolean }) {
+  return (
+    <span className="flex h-3 items-end gap-[2px]" aria-hidden="true">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className={`w-[2.5px] rounded-full bg-moon-300 ${active ? "animate-pulse" : ""}`}
+          style={
+            active
+              ? {
+                  height: "100%",
+                  animation: `breathe ${0.9 + i * 0.35}s ease-in-out ${i * 0.2}s infinite`,
+                  transformOrigin: "bottom",
+                }
+              : { height: "30%" }
+          }
+        />
+      ))}
+    </span>
+  );
+}
+
+export default function SiteHeader() {
+  const active = usePlayer((s) => s.active);
+  const isPlaying = usePlayer((s) => s.isPlaying);
+  const timerDuration = usePlayer((s) => s.timerDuration);
+  const remainingSeconds = usePlayer((s) => s.remainingSeconds);
+  const stopAll = usePlayer((s) => s.stopAll);
+
+  const nav = [
+    { href: "#tonight", label: "Tonight" },
+    { href: "#library", label: "Library" },
+    { href: "#mixer", label: "Mixer" },
+    { href: "#stories", label: "Stories" },
+    { href: "#timer", label: "Timer" },
+    { href: "#journal", label: "Journal" },
+  ];
+
+  return (
+    <header className="fixed inset-x-0 top-0 z-40">
+      <div className="glass-chip mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 py-2.5 sm:px-5 mt-3">
+        <a href="#tonight" className="group flex items-center gap-2.5">
+          <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-moon-200/10 ring-1 ring-moon-200/30 transition group-hover:ring-moon-200/60">
+            <Moon className="h-4 w-4 text-moon-200 transition-transform duration-500 group-hover:-rotate-12" />
+          </span>
+          <span className="font-serif text-lg tracking-wide text-moon-100">
+            Luna <span className="italic text-moon-300">Drift</span>
+          </span>
+        </a>
+
+        <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
+          {nav.map((n) => (
+            <a
+              key={n.href}
+              href={n.href}
+              className="rounded-full px-3 py-1.5 text-[13px] text-mist-300 transition hover:bg-moon-200/8 hover:text-moon-100"
+            >
+              {n.label}
+            </a>
+          ))}
+        </nav>
+
+        <div className="flex items-center gap-2">
+          {isPlaying && active && (
+            <div className="glass-chip flex items-center gap-2.5 rounded-full px-3 py-1.5">
+              <EqualizerBars active />
+              <span className="hidden text-xs text-mist-200 sm:block">
+                {getSoundscape(active).name}
+              </span>
+              {timerDuration && (
+                <span className="rounded-full bg-moon-200/10 px-2 py-0.5 font-mono text-[11px] text-moon-200">
+                  {formatRemaining(remainingSeconds)}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => stopAll()}
+                aria-label="Stop all sound"
+                className="rounded-full p-1 text-mist-300 transition hover:bg-moon-200/10 hover:text-moon-100"
+              >
+                <Square className="h-3 w-3 fill-current" />
+              </button>
+            </div>
+          )}
+          <a
+            href="#timer"
+            className="hidden rounded-full border border-moon-200/25 px-3.5 py-1.5 text-xs text-moon-200 transition hover:border-moon-200/50 hover:bg-moon-200/10 sm:block"
+          >
+            Set a timer
+          </a>
+        </div>
+      </div>
+    </header>
+  );
+}

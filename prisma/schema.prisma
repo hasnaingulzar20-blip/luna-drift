@@ -1,0 +1,29 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id             String         @id @default(cuid())
+  name           String         @default("Drifter")
+  streak         Int            @default(0)
+  totalMinutes   Int            @default(0)
+  lastSessionDay String? // YYYY-MM-DD of the most recent session (UTC)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  sessions       SleepSession[]
+}
+
+model SleepSession {
+  id         String    @id @default(cuid())
+  profileId  String
+  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  soundscape String
+  minutes    Int
+  completed  Boolean   @default(false)
+  endedAt    DateTime  @default(now())
+}
