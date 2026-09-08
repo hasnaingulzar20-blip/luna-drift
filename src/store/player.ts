@@ -12,10 +12,17 @@ import {
 } from "@/lib/soundscapes";
 import {
   SEQUENCE_MAX_CUSTOM,
+  SEQUENCE_MAX_STEPS,
+  STEP_MAX_MINUTES,
+  STEP_MIN_MINUTES,
   clampStepMinutes,
+  type SequenceSound,
   type WindDownSequence,
   type WindDownStep,
 } from "@/lib/sequences";
+
+/** whisper level the room settles at when drifting till dawn */
+export const DAWN_WHISPER = 0.3;
 
 export type TimerDuration = 30 | 60 | 90 | null;
 
@@ -82,6 +89,10 @@ interface PlayerState {
   /* the last bell */
   chimeOnEnd: boolean;
 
+  /* drift till dawn */
+  tillDawn: boolean; // preference: after the timer, keep a whisper going
+  dawnMode: boolean; // live: the room is whispering until morning right now
+
   /* sleep timer */
   timerDuration: TimerDuration; // planned minutes (for display/record)
   timerEndsAt: number | null;
@@ -113,6 +124,9 @@ interface PlayerState {
   setChimeOnEnd: (v: boolean) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   cancelTimer: () => void;
+  setTillDawn: (v: boolean) => void;
+  /** validate a sequence that arrived from a share link; true when it joined the shelf */
+  importSequence: (raw: unknown) => boolean;
   startSequence: (seq: WindDownSequence) => void;
   cancelSequence: () => void; // ends the handover, keeps the current room playing
   saveSequence: (name: string, steps: WindDownStep[]) => WindDownSequence | null;
@@ -155,6 +169,9 @@ export const usePlayer = create<PlayerState>()(
 
       chimeOnEnd: true,
 
+      tillDawn: false,
+      dawnMode: false,
+
       timerDuration: null,
       timerEndsAt: null,
       remainingSeconds: 0,
@@ -188,6 +205,10 @@ export const usePlayer = create<PlayerState>()(
           sessionStartedAt: get().sessionStartedAt ?? Date.now(),
           lastPlayed: { id, at: Date.now() },
         });
+        // a new room inside dawn mode keeps the whisper
+        if (get().dawnMode) {
+          audioEngine.setFadeFactor(DAWN_WHISPER, 4);
+        }
       },
 
       stopAll: (record = true) => {
@@ -213,6 +234,7 @@ export const usePlayer = create<PlayerState>()(
           remainingSeconds: 0,
           starIntensity: 1,
           sequence: null,
+          dawnMode: false,
         });
       },
 
@@ -392,12 +414,59 @@ export const usePlayer = create<PlayerState>()(
 
       setChimeOnEnd: (v) => set({ chimeOnEnd: v }),
 
+      setTillDawn: (v) => set({ tillDawn: v }),
+
+      importSequence: (raw) => {
+        if (!raw || typeof raw !== "object") return false;
+        const r = raw as Record<string, unknown>;
+        const name = typeof r.name === "string" ? r.name.trim().slice(0, 32) : "";
+        if (!name || !Array.isArray(r.steps) || r.steps.length === 0) return false;
+        const s = get();
+        if (s.customSequences.some((q) => q.name.toLowerCase() === name.toLowerCase())) {
+          return false; // already on the shelf
+        }
+        const valid = new Set<string>([...SOUNDSCAPE_IDS, "silence"]);
+        const steps: WindDownStep[] = [];
+        for (const rawStep of r.steps.slice(0, SEQUENCE_MAX_STEPS)) {
+          if (!rawStep || typeof rawStep !== "object") return false; // one bad step voids the whole handover
+          const st = rawStep as Record<string, unknown>;
+          const sound = st.soundscape;
+          const minutesNum = Number(st.minutes);
+          if (
+            typeof sound !== "string" ||
+            !valid.has(sound) ||
+            !Number.isFinite(minutesNum) ||
+            minutesNum < STEP_MIN_MINUTES ||
+            minutesNum > STEP_MAX_MINUTES
+          ) {
+            return false;
+          }
+          steps.push({
+            id: `s${steps.length}`,
+            soundscape: sound as SequenceSound,
+            minutes: clampStepMinutes(minutesNum),
+          });
+        }
+        if (steps.length === 0) return false;
+        const seq: WindDownSequence = {
+          id: `ws-${Date.now().toString(36)}`,
+          name,
+          steps,
+        };
+        set({
+          customSequences: [...s.customSequences, seq].slice(-SEQUENCE_MAX_CUSTOM),
+        });
+        return true;
+      },
+
       startTimer: (minutes) => {
+        audioEngine.resetFade(); // leave any dawn whisper behind
         set({
           timerDuration: minutes,
           timerEndsAt: Date.now() + minutes * 60_000,
           remainingSeconds: minutes * 60,
           sequence: null, // the timer takes over the ending
+          dawnMode: false,
         });
       },
 
@@ -532,7 +601,6 @@ export const usePlayer = create<PlayerState>()(
         if (remaining <= 0) {
           // natural end — the long fade has already happened over the last 60s
           if (s.chimeOnEnd) audioEngine.playChime("complete");
-          audioEngine.stopAll(1.2);
           const minutes = s.sessionStartedAt
             ? Math.max(
                 s.timerDuration ?? 0,
@@ -544,6 +612,23 @@ export const usePlayer = create<PlayerState>()(
             minutes: Math.max(minutes, s.timerDuration ?? 0),
             completed: true,
           });
+          if (s.tillDawn && s.active) {
+            // the night goes on — the room breathes back as a whisper and
+            // holds until the wake light (or a hand in the dark) ends it
+            audioEngine.resetFade();
+            audioEngine.setFadeFactor(DAWN_WHISPER, 9);
+            set({
+              dawnMode: true,
+              isPlaying: true,
+              sessionStartedAt: Date.now(), // the dawn stretch is its own entry
+              timerDuration: null,
+              timerEndsAt: null,
+              remainingSeconds: 0,
+              starIntensity: 0.4,
+            });
+            return;
+          }
+          audioEngine.stopAll(1.2);
           set({
             active: null,
             isPlaying: false,
@@ -580,7 +665,13 @@ export const usePlayer = create<PlayerState>()(
         wakeAlarm: s.wakeAlarm,
         chimeOnEnd: s.chimeOnEnd,
         customSequences: s.customSequences,
+        tillDawn: s.tillDawn,
       }),
     }
   )
 );
+
+/** QA/debug handle — lets test harnesses drive playback state directly */
+if (typeof window !== "undefined") {
+  (window as unknown as { __lunaStore?: typeof usePlayer }).__lunaStore = usePlayer;
+}

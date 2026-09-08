@@ -74,6 +74,51 @@ export default function Hero() {
   }, []);
   const phase = now ? moonPhase(now) : null;
 
+  // gentle mouse parallax — the artwork drifts a few pixels toward the cursor
+  const sectionRef = useRef<HTMLElement>(null);
+  const artRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const section = sectionRef.current;
+    const art = artRef.current;
+    if (!section || !art) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia("(pointer: fine)").matches) return;
+    let raf = 0;
+    let tx = 0, ty = 0, cx = 0, cy = 0;
+    const step = () => {
+      raf = 0;
+      cx += (tx - cx) * 0.08;
+      cy += (ty - cy) * 0.08;
+      art.style.transform = `translate3d(${cx.toFixed(2)}px, ${cy.toFixed(2)}px, 0)`;
+      if (Math.abs(tx - cx) > 0.05 || Math.abs(ty - cy) > 0.05) {
+        raf = requestAnimationFrame(step);
+      }
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(step);
+    };
+    const onMove = (e: MouseEvent) => {
+      const rect = section.getBoundingClientRect();
+      const nx = (e.clientX - rect.left) / rect.width - 0.5; // -0.5..0.5
+      const ny = (e.clientY - rect.top) / rect.height - 0.5;
+      tx = nx * 9;
+      ty = ny * 7;
+      schedule();
+    };
+    const onLeave = () => {
+      tx = 0;
+      ty = 0;
+      schedule();
+    };
+    section.addEventListener("mousemove", onMove);
+    section.addEventListener("mouseleave", onLeave);
+    return () => {
+      section.removeEventListener("mousemove", onMove);
+      section.removeEventListener("mouseleave", onLeave);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
   // audio-reactive glow over the artwork (gentle, rAF-driven)
   // analyser-driven when the context is live; falls back to a slow
   // synthetic breathe so the art still glows in silent environments
@@ -103,7 +148,12 @@ export default function Hero() {
   }, [isPlaying]);
 
   return (
-    <section id="tonight" aria-label="Tonight's pick" className="relative scroll-mt-24 pt-32 sm:pt-36">
+    <section
+      id="tonight"
+      aria-label="Tonight's pick"
+      ref={sectionRef}
+      className="relative scroll-mt-24 pt-32 sm:pt-36"
+    >
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
         {/* ── copy side ── */}
         <div>
@@ -231,8 +281,8 @@ export default function Hero() {
             aria-hidden="true"
             className="anim-drift absolute -inset-6 rounded-[3rem] bg-[radial-gradient(circle_at_60%_35%,rgba(205,180,124,0.14),transparent_65%)]"
           />
-          <div className="glass-panel relative overflow-hidden rounded-[2.2rem] p-2.5">
-            <div className="relative overflow-hidden rounded-[1.8rem]">
+          <div className="glass-panel relative overflow-hidden rounded-[2.2rem] p-2.5 will-change-transform">
+            <div ref={artRef} className="relative overflow-hidden rounded-[1.8rem]">
               <img
                 src={pick.image}
                 alt={`Moonlit rainfall over a dark lake — artwork for ${pick.name}`}

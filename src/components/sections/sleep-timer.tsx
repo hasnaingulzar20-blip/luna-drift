@@ -8,8 +8,10 @@ import {
   ChevronDown,
   ChevronUp,
   Info,
+  Link2,
   ListMusic,
   Moon,
+  MoonStar,
   Play,
   Plus,
   Sunrise,
@@ -26,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import Ornament from "@/components/atmosphere/ornament";
+import { buildSequenceLink } from "@/components/atmosphere/shared-sequence";
 import { usePlayer } from "@/store/player";
 import {
   SOUNDSCAPES,
@@ -124,6 +127,10 @@ export default function SleepTimer() {
   const cancelSequence = usePlayer((s) => s.cancelSequence);
   const saveSequence = usePlayer((s) => s.saveSequence);
   const deleteSequence = usePlayer((s) => s.deleteSequence);
+  const tillDawn = usePlayer((s) => s.tillDawn);
+  const setTillDawn = usePlayer((s) => s.setTillDawn);
+  const dawnMode = usePlayer((s) => s.dawnMode);
+  const stopAll = usePlayer((s) => s.stopAll);
 
   /* builder state */
   const [building, setBuilding] = useState(false);
@@ -131,12 +138,43 @@ export default function SleepTimer() {
   const [buildSteps, setBuildSteps] = useState<WindDownStep[]>([
     { id: "b0", soundscape: "rain", minutes: 20 },
   ]);
+  const [copiedSeqId, setCopiedSeqId] = useState<string | null>(null);
+
+  const copySeqLink = async (seq: WindDownSequence) => {
+    const link = buildSequenceLink(seq);
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(link);
+      ok = true;
+    } catch {
+      // clipboard may be blocked — fall back to a hidden textarea
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = link;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+      } catch {
+        ok = false;
+      }
+    }
+    if (ok) {
+      setCopiedSeqId(seq.id);
+      window.setTimeout(() => setCopiedSeqId((cur) => (cur === seq.id ? null : cur)), 2200);
+    }
+  };
 
   const progress = timerDuration
     ? 1 - remainingSeconds / (timerDuration * 60)
-    : 0;
+    : dawnMode
+      ? 1
+      : 0;
   const circumference = 2 * Math.PI * 54;
   const fading = timerDuration !== null && remainingSeconds <= 60 && remainingSeconds > 0;
+  const dawn = dawnMode && isPlaying;
 
   return (
     <section id="timer" aria-label="Sleep timer" className="relative mt-24 scroll-mt-28 sm:mt-32">
@@ -209,7 +247,7 @@ export default function SleepTimer() {
 
             {/* countdown dial */}
             <div className="mx-auto flex flex-col items-center">
-              <div className={`relative h-40 w-40 sm:h-44 sm:w-44 ${fading ? "animate-pulse" : ""}`}>
+              <div className={`relative h-40 w-40 sm:h-44 sm:w-44 ${fading || dawn ? "animate-pulse" : ""}`}>
                 <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
                   <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(159,173,216,0.12)" strokeWidth="4" />
                   <circle
@@ -217,7 +255,7 @@ export default function SleepTimer() {
                     cy="60"
                     r="54"
                     fill="none"
-                    stroke="url(#timerGrad)"
+                    stroke={dawn ? "url(#dawnGrad)" : "url(#timerGrad)"}
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeDasharray={circumference}
@@ -229,32 +267,54 @@ export default function SleepTimer() {
                       <stop offset="0%" stopColor="#ece2c8" />
                       <stop offset="100%" stopColor="#cdb47c" />
                     </linearGradient>
+                    <linearGradient id="dawnGrad" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#f0b98a" />
+                      <stop offset="100%" stopColor="#d97a4a" />
+                    </linearGradient>
                   </defs>
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <Moon
-                    className={`mb-1.5 h-4 w-4 text-moon-300 transition-opacity duration-1000 ${timerDuration ? "" : "opacity-30"}`}
-                    aria-hidden="true"
-                  />
-                  <span className="font-mono text-2xl text-moon-100" aria-live="polite">
-                    {timerDuration ? formatRemaining(remainingSeconds) : "--:--"}
-                  </span>
+                  {dawn ? (
+                    <Sunrise className="mb-1 h-4 w-4 text-ember-300" aria-hidden="true" />
+                  ) : (
+                    <Moon
+                      className={`mb-1.5 h-4 w-4 text-moon-300 transition-opacity duration-1000 ${timerDuration ? "" : "opacity-30"}`}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {dawn ? (
+                    <span className="font-serif text-xl italic text-ember-200">till dawn</span>
+                  ) : (
+                    <span className="font-mono text-2xl text-moon-100" aria-live="polite">
+                      {timerDuration ? formatRemaining(remainingSeconds) : "--:--"}
+                    </span>
+                  )}
                   <span className="mt-1 text-[10px] uppercase tracking-[0.25em] text-mist-500">
-                    {timerDuration ? (fading ? "fading out" : "drifting") : "no timer"}
+                    {dawn ? "whispering" : timerDuration ? (fading ? "fading out" : "drifting") : "no timer"}
                   </span>
                 </div>
               </div>
-              {fading && (
-                <p className="mt-3 animate-pulse text-xs italic text-moon-300/80">
-                  the long fade has begun…
-                </p>
+              {dawn ? (
+                <button
+                  type="button"
+                  onClick={() => stopAll()}
+                  className="mt-4 flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-xs text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+                >
+                  <MoonStar className="h-3.5 w-3.5" aria-hidden="true" /> end the night
+                </button>
+              ) : (
+                fading && (
+                  <p className="mt-3 animate-pulse text-xs italic text-moon-300/80">
+                    the long fade has begun…
+                  </p>
+                )
               )}
             </div>
           </div>
 
-          {/* ── endings: wake light + last bell ── */}
+          {/* ── endings: wake light · last bell · drift till dawn ── */}
           <Ornament className="mt-10" />
-          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
             {/* wake light */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
@@ -323,6 +383,43 @@ export default function SleepTimer() {
                   checked={chimeOnEnd}
                   onCheckedChange={setChimeOnEnd}
                   aria-label="Ring a soft bell when the timer completes"
+                />
+              </div>
+            </div>
+
+            {/* drift till dawn */}
+            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+              <div
+                aria-hidden="true"
+                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(240,185,138,0.13),transparent_70%)]"
+                style={{ animationDelay: "2.4s" }}
+              />
+              <div className="relative flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+                    <MoonStar className="h-3.5 w-3.5 text-ember-300" aria-hidden="true" />
+                    drift till dawn
+                  </p>
+                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-mist-400">
+                    When the timer runs its course, the room keeps whispering at a hush until
+                    morning — the wake light, or your hand in the dark, ends the night.
+                  </p>
+                  <p
+                    className="mt-2 font-mono text-[11px] text-ember-300/90"
+                    aria-live="polite"
+                  >
+                    {tillDawn
+                      ? dawn
+                        ? "whispering till dawn"
+                        : "armed — the night continues past the timer"
+                      : "off — the timer ends in silence"}
+                  </p>
+                </div>
+                <Switch
+                  checked={tillDawn}
+                  onCheckedChange={setTillDawn}
+                  aria-label="Keep a whisper going till dawn after the timer ends"
+                  className="data-[state=checked]:bg-ember-400/80"
                 />
               </div>
             </div>
@@ -460,14 +557,29 @@ export default function SleepTimer() {
                             ))}
                           </span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteSequence(seq.id)}
-                          aria-label={`Delete sequence ${seq.name}`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => void copySeqLink(seq)}
+                            aria-label={copiedSeqId === seq.id ? `Link for ${seq.name} copied` : `Copy share link for ${seq.name}`}
+                            title="copy a link to this handover"
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            {copiedSeqId === seq.id ? (
+                              <Check className="h-3.5 w-3.5 text-moon-200" aria-hidden="true" />
+                            ) : (
+                              <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteSequence(seq.id)}
+                            aria-label={`Delete sequence ${seq.name}`}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>

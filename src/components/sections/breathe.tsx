@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, Wind } from "lucide-react";
+import Ornament from "@/components/atmosphere/ornament";
+import BodyScan from "@/components/sections/body-scan";
 
 type Phase = "inhale" | "hold" | "exhale";
 
@@ -226,6 +228,12 @@ export default function Breathe() {
                 {running ? phase.name : "4 · 7 · 8"}
               </p>
             </div>
+          </div>
+
+          {/* ── the body scan: a slow sweep, head to toe ── */}
+          <Ornament className="mt-10" />
+          <div className="mt-8">
+            <BodyScan />
           </div>
         </div>
       </div>

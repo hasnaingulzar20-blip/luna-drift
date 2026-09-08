@@ -41,6 +41,7 @@ export default function SiteHeader() {
   const sequence = usePlayer((s) => s.sequence);
   const stopAll = usePlayer((s) => s.stopAll);
   const wakeAlarm = usePlayer((s) => s.wakeAlarm);
+  const dawnMode = usePlayer((s) => s.dawnMode);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -108,6 +109,14 @@ export default function SiteHeader() {
                   title={`Wind-down: ${sequence.name} — step ${sequence.stepIndex + 1} of ${sequence.steps.length}`}
                 >
                   WD {sequence.stepIndex + 1}/{sequence.steps.length}
+                </span>
+              )}
+              {dawnMode && (
+                <span
+                  className="rounded-full bg-ember-400/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-ember-300"
+                  title="Drifting till dawn — the room whispers until morning"
+                >
+                  till dawn
                 </span>
               )}
               <button

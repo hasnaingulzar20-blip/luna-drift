@@ -1,0 +1,1158 @@
+     1→/**
+     2→ * Luna Drift — procedural soundscape engine.
+     3→ *
+     4→ * Everything is synthesized live with the Web Audio API so loops are
+     5→ * seamless and infinite, and mixer layers (rain / wind / fire) can be
+     6→ * stacked over any base soundscape in real time.
+     7→ */
+     8→
+     9→export type SoundscapeId =
+    10→  | "rain"
+    11→  | "forest"
+    12→  | "ocean"
+    13→  | "cafe"
+    14→  | "fireplace"
+    15→  | "piano"
+    16→  | "train"
+    17→  | "bowls";
+    18→
+    19→export type MixLayerId = "rain" | "wind" | "fire";
+    20→
+    21→type Dispose = () => void;
+    22→type Builder = (ctx: AudioContext, out: GainNode) => Dispose;
+    23→
+    24→/* ─────────────────────────── helpers ─────────────────────────── */
+    25→
+    26→const rnd = (min: number, max: number) => min + Math.random() * (max - min);
+    27→const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+    28→
+    29→function makeNoiseBuffer(ctx: AudioContext, kind: "white" | "pink" | "brown", seconds = 4): AudioBuffer {
+    30→  const length = ctx.sampleRate * seconds;
+    31→  const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
+    32→  const data = buffer.getChannelData(0);
+    33→  if (kind === "white") {
+    34→    for (let i = 0; i < length; i++) data[i] = Math.random() * 2 - 1;
+    35→  } else if (kind === "brown") {
+    36→    let last = 0;
+    37→    for (let i = 0; i < length; i++) {
+    38→      const white = Math.random() * 2 - 1;
+    39→      last = (last + 0.02 * white) / 1.02;
+    40→      data[i] = last * 3.2;
+    41→    }
+    42→  } else {
+    43→    // pink (Paul Kellet approximation)
+    44→    let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+    45→    for (let i = 0; i < length; i++) {
+    46→      const white = Math.random() * 2 - 1;
+    47→      b0 = 0.99886 * b0 + white * 0.0555179;
+    48→      b1 = 0.99332 * b1 + white * 0.0750759;
+    49→      b2 = 0.969 * b2 + white * 0.153852;
+    50→      b3 = 0.8665 * b3 + white * 0.3104856;
+    51→      b4 = 0.55 * b4 + white * 0.5329522;
+    52→      b5 = -0.7616 * b5 - white * 0.016898;
+    53→      data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+    54→      b6 = white * 0.115926;
+    55→    }
+    56→  }
+    57→  return buffer;
+    58→}
+    59→
+    60→class Timers {
+    61→  private timers: ReturnType<typeof setTimeout>[] = [];
+    62→  after(ms: number, fn: () => void) {
+    63→    const t = setTimeout(() => {
+    64→      this.timers = this.timers.filter((x) => x !== t);
+    65→      fn();
+    66→    }, ms);
+    67→    this.timers.push(t);
+    68→    return t;
+    69→  }
+    70→  every(ms: number, fn: () => void) {
+    71→    let alive = true;
+    72→    const loop = () => {
+    73→      if (!alive) return;
+    74→      fn();
+    75→      this.after(ms, loop);
+    76→    };
+    77→    this.after(ms, loop);
+    78→    return () => {
+    79→      alive = false;
+    80→    };
+    81→  }
+    82→  dispose() {
+    83→    this.timers.forEach(clearTimeout);
+    84→    this.timers = [];
+    85→  }
+    86→}
+    87→
+    88→interface Sources {
+    89→  nodes: AudioScheduledSourceNode[];
+    90→}
+    91→function noiseSource(ctx: AudioContext, s: Sources, kind: "white" | "pink" | "brown"): AudioBufferSourceNode {
+    92→  const src = ctx.createBufferSource();
+    93→  src.buffer = makeNoiseBuffer(ctx, kind);
+    94→  src.loop = true;
+    95→  s.nodes.push(src);
+    96→  return src;
+    97→}
+    98→
+    99→/* one short filtered-noise burst (used for droplets, crackles, clinks…) */
+   100→function burst(
+   101→  ctx: AudioContext,
+   102→  out: AudioNode,
+   103→  opts: {
+   104→    kind?: "white" | "pink" | "brown";
+   105→    filter: { type: BiquadFilterType; freq: number; q?: number };
+   106→    gain: number;
+   107→    attack?: number;
+   108→    decay: number;
+   109→  }
+   110→) {
+   111→  const t = ctx.currentTime;
+   112→  const src = ctx.createBufferSource();
+   113→  src.buffer = makeNoiseBuffer(ctx, opts.kind ?? "white", 0.25);
+   114→  const f = ctx.createBiquadFilter();
+   115→  f.type = opts.filter.type;
+   116→  f.frequency.value = opts.filter.freq;
+   117→  if (opts.filter.q) f.Q.value = opts.filter.q;
+   118→  const g = ctx.createGain();
+   119→  g.gain.setValueAtTime(0.0001, t);
+   120→  g.gain.exponentialRampToValueAtTime(Math.max(opts.gain, 0.0002), t + (opts.attack ?? 0.004));
+   121→  g.gain.exponentialRampToValueAtTime(0.0001, t + opts.decay);
+   122→  src.connect(f).connect(g).connect(out);
+   123→  src.start(t, rnd(0, 2));
+   124→  src.stop(t + opts.decay + 0.05);
+   125→}
+   126→
+   127→/* one tonal ping with pitch envelope (birds, clinks, hoots, notes…) */
+   128→function tone(
+   129→  ctx: AudioContext,
+   130→  out: AudioNode,
+   131→  opts: {
+   132→    type?: OscillatorType;
+   133→    freq: number;
+   134→    freqEnd?: number;
+   135→    glide?: number;
+   136→    gain: number;
+   137→    attack?: number;
+   138→    decay: number;
+   139→    lowpass?: number;
+   140→    detune?: number;
+   141→  }
+   142→) {
+   143→  const t = ctx.currentTime;
+   144→  const osc = ctx.createOscillator();
+   145→  osc.type = opts.type ?? "sine";
+   146→  osc.frequency.setValueAtTime(opts.freq, t);
+   147→  if (opts.glide) {
+   148→    osc.frequency.exponentialRampToValueAtTime(
+   149→      Math.max(opts.freqEnd ?? opts.freq, 1),
+   150→      t + opts.glide
+   151→    );
+   152→  }
+   153→  if (opts.detune) osc.detune.value = opts.detune;
+   154→  const g = ctx.createGain();
+   155→  g.gain.setValueAtTime(0.0001, t);
+   156→  g.gain.exponentialRampToValueAtTime(Math.max(opts.gain, 0.0002), t + (opts.attack ?? 0.01));
+   157→  g.gain.exponentialRampToValueAtTime(0.0001, t + opts.decay);
+   158→  let node: AudioNode = g;
+   159→  if (opts.lowpass) {
+   160→    const lp = ctx.createBiquadFilter();
+   161→    lp.type = "lowpass";
+   162→    lp.frequency.value = opts.lowpass;
+   163→    g.connect(lp);
+   164→    node = lp;
+   165→  }
+   166→  osc.connect(g);
+   167→  node.connect(out);
+   168→  osc.start(t);
+   169→  osc.stop(t + opts.decay + 0.1);
+   170→}
+   171→
+   172→/* ─────────────────────── layer builders ──────────────────────── */
+   173→
+   174→const buildRain: Builder = (ctx, out) => {
+   175→  const timers = new Timers();
+   176→  const s: Sources = { nodes: [] };
+   177→
+   178→  // steady shower bed
+   179→  const bed = noiseSource(ctx, s, "white");
+   180→  const hp = ctx.createBiquadFilter();
+   181→  hp.type = "highpass";
+   182→  hp.frequency.value = 420;
+   183→  const lp = ctx.createBiquadFilter();
+   184→  lp.type = "lowpass";
+   185→  lp.frequency.value = 6800;
+   186→  const bedGain = ctx.createGain();
+   187→  bedGain.gain.value = 0.3;
+   188→  bed.connect(hp).connect(lp).connect(bedGain).connect(out);
+   189→
+   190→  // slow breathing of the shower intensity
+   191→  const swell = ctx.createOscillator();
+   192→  swell.frequency.value = 0.05;
+   193→  const swellAmt = ctx.createGain();
+   194→  swellAmt.gain.value = 0.06;
+   195→  swell.connect(swellAmt).connect(bedGain.gain);
+   196→  swell.start();
+   197→  s.nodes.push(swell);
+   198→
+   199→  // individual droplet plips
+   200→  const droplets = timers.every(rnd(90, 140), () => {
+   201→    const n = Math.random() < 0.35 ? 2 : 1;
+   202→    for (let i = 0; i < n; i++) {
+   203→      timers.after(rnd(0, 120), () =>
+   204→        burst(ctx, out, {
+   205→          filter: { type: "bandpass", freq: rnd(700, 2600), q: rnd(4, 9) },
+   206→          gain: rnd(0.015, 0.09),
+   207→          decay: rnd(0.03, 0.09),
+   208→        })
+   209→      );
+   210→    }
+   211→  });
+   212→
+   213→  // far-off thunder, rare and soft
+   214→  const thunder = timers.every(rnd(50000, 95000), () => {
+   215→    const t = ctx.currentTime;
+   216→    const src = ctx.createBufferSource();
+   217→    src.buffer = makeNoiseBuffer(ctx, "brown", 6);
+   218→    const lpT = ctx.createBiquadFilter();
+   219→    lpT.type = "lowpass";
+   220→    lpT.frequency.setValueAtTime(110, t);
+   221→    lpT.frequency.exponentialRampToValueAtTime(45, t + 5);
+   222→    const g = ctx.createGain();
+   223→    g.gain.setValueAtTime(0.0001, t);
+   224→    g.gain.exponentialRampToValueAtTime(0.11, t + 1.4);
+   225→    g.gain.exponentialRampToValueAtTime(0.0001, t + 6);
+   226→    src.connect(lpT).connect(g).connect(out);
+   227→    src.start(t);
+   228→    src.stop(t + 6.2);
+   229→  });
+   230→
+   231→  return () => {
+   232→    droplets();
+   233→    thunder();
+   234→    timers.dispose();
+   235→    s.nodes.forEach((n) => {
+   236→      try {
+   237→        n.stop();
+   238→      } catch { /* already stopped */ }
+   239→    });
+   240→  };
+   241→};
+   242→
+   243→const buildWind: Builder = (ctx, out) => {
+   244→  const timers = new Timers();
+   245→  const s: Sources = { nodes: [] };
+   246→
+   247→  const body = noiseSource(ctx, s, "pink");
+   248→  const lp = ctx.createBiquadFilter();
+   249→  lp.type = "lowpass";
+   250→  lp.frequency.value = 420;
+   251→  lp.Q.value = 0.7;
+   252→  const g = ctx.createGain();
+   253→  g.gain.value = 0.22;
+   254→  body.connect(lp).connect(g).connect(out);
+   255→
+   256→  // LFO sculpting the tone of the wind
+   257→  const lfo = ctx.createOscillator();
+   258→  lfo.frequency.value = 0.045;
+   259→  const lfoAmt = ctx.createGain();
+   260→  lfoAmt.gain.value = 260;
+   261→  lfo.connect(lfoAmt).connect(lp.frequency);
+   262→  lfo.start();
+   263→
+   264→  const lfo2 = ctx.createOscillator();
+   265→  lfo2.frequency.value = 0.062;
+   266→  const lfo2Amt = ctx.createGain();
+   267→  lfo2Amt.gain.value = 0.07;
+   268→  lfo2.connect(lfo2Amt).connect(g.gain);
+   269→  lfo2.start();
+   270→
+   271→  // leaves catching the gusts
+   272→  const leaves = noiseSource(ctx, s, "white");
+   273→  const bp = ctx.createBiquadFilter();
+   274→  bp.type = "bandpass";
+   275→  bp.frequency.value = 5200;
+   276→  bp.Q.value = 0.6;
+   277→  const leafGain = ctx.createGain();
+   278→  leafGain.gain.value = 0.015;
+   279→  leaves.connect(bp).connect(leafGain).connect(out);
+   280→
+   281→  // occasional stronger gust
+   282→  const gusts = timers.every(rnd(9000, 16000), () => {
+   283→    const t = ctx.currentTime;
+   284→    const peak = rnd(0.3, 0.42);
+   285→    const up = rnd(2.4, 4);
+   286→    const down = rnd(4, 7);
+   287→    g.gain.cancelScheduledValues(t);
+   288→    g.gain.setTargetAtTime(peak, t, up / 3);
+   289→    g.gain.setTargetAtTime(0.2, t + up, down / 3);
+   290→    leafGain.gain.setTargetAtTime(rnd(0.05, 0.085), t, up / 3);
+   291→    leafGain.gain.setTargetAtTime(0.014, t + up, down / 3);
+   292→  });
+   293→
+   294→  s.nodes.push(lfo, lfo2);
+   295→  return () => {
+   296→    gusts();
+   297→    timers.dispose();
+   298→    s.nodes.forEach((n) => {
+   299→      try {
+   300→        n.stop();
+   301→      } catch { /* noop */ }
+   302→    });
+   303→  };
+   304→};
+   305→
+   306→const buildFire: Builder = (ctx, out) => {
+   307→  const timers = new Timers();
+   308→  const s: Sources = { nodes: [] };
+   309→
+   310→  // warm low bed
+   311→  const bed = noiseSource(ctx, s, "brown");
+   312→  const lp = ctx.createBiquadFilter();
+   313→  lp.type = "lowpass";
+   314→  lp.frequency.value = 240;
+   315→  const bedGain = ctx.createGain();
+   316→  bedGain.gain.value = 0.4;
+   317→  bed.connect(lp).connect(bedGain).connect(out);
+   318→
+   319→  // flickering body
+   320→  const body = noiseSource(ctx, s, "brown");
+   321→  const bp = ctx.createBiquadFilter();
+   322→  bp.type = "bandpass";
+   323→  bp.frequency.value = 130;
+   324→  bp.Q.value = 0.5;
+   325→  const bodyGain = ctx.createGain();
+   326→  bodyGain.gain.value = 0.3;
+   327→  body.connect(bp).connect(bodyGain).connect(out);
+   328→
+   329→  const flicker = timers.every(320, () => {
+   330→    const t = ctx.currentTime;
+   331→    bodyGain.gain.setTargetAtTime(rnd(0.2, 0.42), t, 0.28);
+   332→  });
+   333→
+   334→  // crackle & pop sparks
+   335→  const crackles = timers.every(rnd(70, 160), () => {
+   336→    const pops = Math.random() < 0.22 ? 2 : 1;
+   337→    for (let i = 0; i < pops; i++) {
+   338→      timers.after(rnd(0, 90), () => {
+   339→        const loud = Math.random() < 0.14;
+   340→        burst(ctx, out, {
+   341→          filter: { type: "highpass", freq: rnd(1400, 3400) },
+   342→          gain: loud ? rnd(0.16, 0.3) : rnd(0.012, 0.07),
+   343→          attack: 0.002,
+   344→          decay: rnd(0.02, loud ? 0.14 : 0.07),
+   345→        });
+   346→      });
+   347→    }
+   348→  });
+   349→
+   350→  // faint hiss of embers
+   351→  const hiss = noiseSource(ctx, s, "white");
+   352→  const hp = ctx.createBiquadFilter();
+   353→  hp.type = "highpass";
+   354→  hp.frequency.value = 6500;
+   355→  const hissGain = ctx.createGain();
+   356→  hissGain.gain.value = 0.006;
+   357→  hiss.connect(hp).connect(hissGain).connect(out);
+   358→
+   359→  return () => {
+   360→    flicker();
+   361→    crackles();
+   362→    timers.dispose();
+   363→    s.nodes.forEach((n) => {
+   364→      try {
+   365→        n.stop();
+   366→      } catch { /* noop */ }
+   367→    });
+   368→  };
+   369→};
+   370→
+   371→const buildForest: Builder = (ctx, out) => {
+   372→  const timers = new Timers();
+   373→  const s: Sources = { nodes: [] };
+   374→
+   375→  // soft night-air bed
+   376→  const air = noiseSource(ctx, s, "pink");
+   377→  const lp = ctx.createBiquadFilter();
+   378→  lp.type = "lowpass";
+   379→  lp.frequency.value = 500;
+   380→  const airGain = ctx.createGain();
+   381→  airGain.gain.value = 0.12;
+   382→  air.connect(lp).connect(airGain).connect(out);
+   383→
+   384→  // leaves, random-walking
+   385→  const leaves = noiseSource(ctx, s, "white");
+   386→  const bp = ctx.createBiquadFilter();
+   387→  bp.type = "bandpass";
+   388→  bp.frequency.value = 5600;
+   389→  bp.Q.value = 0.7;
+   390→  const leafGain = ctx.createGain();
+   391→  leafGain.gain.value = 0.028;
+   392→  leaves.connect(bp).connect(leafGain).connect(out);
+   393→
+   394→  const leafWalk = timers.every(1400, () => {
+   395→    leafGain.gain.setTargetAtTime(rnd(0.014, 0.055), ctx.currentTime, 1.1);
+   396→  });
+   397→
+   398→  // crickets: gated 4.3 kHz trills
+   399→  const cricketOsc = ctx.createOscillator();
+   400→  cricketOsc.type = "sine";
+   401→  cricketOsc.frequency.value = 4250;
+   402→  const trem = ctx.createOscillator();
+   403→  trem.frequency.value = 24;
+   404→  const tremAmt = ctx.createGain();
+   405→  tremAmt.gain.value = 0.5;
+   406→  const cricketGain = ctx.createGain();
+   407→  cricketGain.gain.value = 0;
+   408→  trem.connect(tremAmt).connect(cricketGain.gain);
+   409→  const cricketLp = ctx.createBiquadFilter();
+   410→  cricketLp.type = "lowpass";
+   411→  cricketLp.frequency.value = 5200;
+   412→  cricketOsc.connect(cricketLp).connect(cricketGain).connect(out);
+   413→  cricketOsc.start();
+   414→  trem.start();
+   415→  s.nodes.push(cricketOsc, trem);
+   416→
+   417→  const cricketChirps = timers.every(rnd(2600, 5200), () => {
+   418→    const n = Math.floor(rnd(3, 7));
+   419→    for (let i = 0; i < n; i++) {
+   420→      timers.after(i * 64, () => {
+   421→        const t = ctx.currentTime;
+   422→        cricketGain.gain.setTargetAtTime(0.006, t, 0.012);
+   423→        timers.after(52, () => cricketGain.gain.setTargetAtTime(0.0002, ctx.currentTime, 0.012));
+   424→      });
+   425→    }
+   426→  });
+   427→
+   428→  // night birds — sparse chirp bursts
+   429→  const birds = timers.every(rnd(6000, 13000), () => {
+   430→    const chirps = Math.floor(rnd(2, 5));
+   431→    const base = rnd(2500, 3600);
+   432→    for (let i = 0; i < chirps; i++) {
+   433→      timers.after(i * rnd(140, 200), () =>
+   434→        tone(ctx, out, {
+   435→          type: "sine",
+   436→          freq: base * rnd(0.95, 1.08),
+   437→          freqEnd: base * rnd(0.78, 0.9),
+   438→          glide: 0.09,
+   439→          gain: rnd(0.025, 0.055),
+   440→          decay: 0.14,
+   441→          lowpass: 5200,
+   442→        })
+   443→      );
+   444→    }
+   445→  });
+   446→
+   447→  // a distant owl, very rare
+   448→  const owl = timers.every(rnd(34000, 74000), () => {
+   449→    timers.after(0, () =>
+   450→      tone(ctx, out, { freq: 356, freqEnd: 322, glide: 0.35, gain: 0.035, attack: 0.06, decay: 0.5, lowpass: 700 })
+   451→    );
+   452→    timers.after(700, () =>
+   453→      tone(ctx, out, { freq: 330, freqEnd: 295, glide: 0.4, gain: 0.032, attack: 0.06, decay: 0.6, lowpass: 700 })
+   454→    );
+   455→  });
+   456→
+   457→  return () => {
+   458→    leafWalk();
+   459→    cricketChirps();
+   460→    birds();
+   461→    owl();
+   462→    timers.dispose();
+   463→    s.nodes.forEach((n) => {
+   464→      try {
+   465→        n.stop();
+   466→      } catch { /* noop */ }
+   467→    });
+   468→  };
+   469→};
+   470→
+   471→const buildOcean: Builder = (ctx, out) => {
+   472→  const timers = new Timers();
+   473→  const s: Sources = { nodes: [] };
+   474→
+   475→  const deep = noiseSource(ctx, s, "brown");
+   476→  const deepLp = ctx.createBiquadFilter();
+   477→  deepLp.type = "lowpass";
+   478→  deepLp.frequency.value = 120;
+   479→  const deepGain = ctx.createGain();
+   480→  deepGain.gain.value = 0.14;
+   481→  deep.connect(deepLp).connect(deepGain).connect(out);
+   482→
+   483→  // the wave body — swells in on a schedule
+   484→  const wave = noiseSource(ctx, s, "brown");
+   485→  const waveLp = ctx.createBiquadFilter();
+   486→  waveLp.type = "lowpass";
+   487→  waveLp.frequency.value = 620;
+   488→  const waveGain = ctx.createGain();
+   489→  waveGain.gain.value = 0.1;
+   490→  wave.connect(waveLp).connect(waveGain).connect(out);
+   491→
+   492→  // foam hiss trails the crest
+   493→  const foam = noiseSource(ctx, s, "white");
+   494→  const foamHp = ctx.createBiquadFilter();
+   495→  foamHp.type = "highpass";
+   496→  foamHp.frequency.value = 1900;
+   497→  const foamGain = ctx.createGain();
+   498→  foamGain.gain.value = 0.008;
+   499→  foam.connect(foamHp).connect(foamGain).connect(out);
+   500→
+   501→  const swells = timers.every(rnd(8800, 10600), () => {
+   502→    const t = ctx.currentTime;
+   503→    const up = rnd(2.6, 3.4);
+   504→    waveGain.gain.cancelScheduledValues(t);
+   505→    foamGain.gain.cancelScheduledValues(t);
+   506→    waveGain.gain.setTargetAtTime(rnd(0.42, 0.6), t, up / 3);
+   507→    waveGain.gain.setTargetAtTime(0.09, t + up, 1.9);
+   508→    foamGain.gain.setTargetAtTime(0.004, t, up / 3);
+   509→    foamGain.gain.setTargetAtTime(rnd(0.1, 0.17), t + up * 0.85, 0.5);
+   510→    foamGain.gain.setTargetAtTime(0.007, t + up * 0.85 + 1.6, 2.4);
+   511→  });
+   512→
+   513→  return () => {
+   514→    swells();
+   515→    timers.dispose();
+   516→    s.nodes.forEach((n) => {
+   517→      try {
+   518→        n.stop();
+   519→      } catch { /* noop */ }
+   520→    });
+   521→  };
+   522→};
+   523→
+   524→const buildCafe: Builder = (ctx, out) => {
+   525→  const timers = new Timers();
+   526→  const s: Sources = { nodes: [] };
+   527→
+   528→  // room tone
+   529→  const room = noiseSource(ctx, s, "brown");
+   530→  const roomLp = ctx.createBiquadFilter();
+   531→  roomLp.type = "lowpass";
+   532→  roomLp.frequency.value = 140;
+   533→  const roomGain = ctx.createGain();
+   534→  roomGain.gain.value = 0.16;
+   535→  room.connect(roomLp).connect(roomGain).connect(out);
+   536→
+   537→  // murmur bed — two wandering voices-like bands
+   538→  const murmur = noiseSource(ctx, s, "brown");
+   539→  const mBp = ctx.createBiquadFilter();
+   540→  mBp.type = "bandpass";
+   541→  mBp.frequency.value = 360;
+   542→  mBp.Q.value = 0.6;
+   543→  const mGain = ctx.createGain();
+   544→  mGain.gain.value = 0.3;
+   545→  murmur.connect(mBp).connect(mGain).connect(out);
+   546→
+   547→  const murmur2 = noiseSource(ctx, s, "brown");
+   548→  const m2Bp = ctx.createBiquadFilter();
+   549→  m2Bp.type = "bandpass";
+   550→  m2Bp.frequency.value = 780;
+   551→  m2Bp.Q.value = 0.9;
+   552→  const m2Gain = ctx.createGain();
+   553→  m2Gain.gain.value = 0.13;
+   554→  murmur2.connect(m2Bp).connect(m2Gain).connect(out);
+   555→
+   556→  const murmurWalk = timers.every(900, () => {
+   557→    const t = ctx.currentTime;
+   558→    mGain.gain.setTargetAtTime(rnd(0.2, 0.38), t, 0.7);
+   559→    m2Gain.gain.setTargetAtTime(rnd(0.07, 0.18), t, 0.8);
+   560→    mBp.frequency.setTargetAtTime(rnd(300, 460), t, 0.9);
+   561→    m2Bp.frequency.setTargetAtTime(rnd(650, 950), t, 0.9);
+   562→  });
+   563→
+   564→  // porcelain & cutlery
+   565→  const clinks = timers.every(rnd(6000, 14000), () => {
+   566→    const f = rnd(1500, 3300);
+   567→    tone(ctx, out, { type: "triangle", freq: f, gain: rnd(0.018, 0.045), decay: rnd(0.25, 0.5), lowpass: 5200 });
+   568→    if (Math.random() < 0.45) {
+   569→      timers.after(rnd(180, 380), () =>
+   570→        tone(ctx, out, { type: "triangle", freq: f * rnd(0.94, 1.06), gain: rnd(0.012, 0.03), decay: 0.3, lowpass: 5200 })
+   571→      );
+   572→    }
+   573→  });
+   574→
+   575→  // occasional chair shuffle / cup set down
+   576→  const shuffle = timers.every(rnd(26000, 55000), () => {
+   577→    burst(ctx, out, { kind: "pink", filter: { type: "lowpass", freq: 520 }, gain: rnd(0.02, 0.05), decay: rnd(0.2, 0.4) });
+   578→  });
+   579→
+   580→  return () => {
+   581→    murmurWalk();
+   582→    clinks();
+   583→    shuffle();
+   584→    timers.dispose();
+   585→    s.nodes.forEach((n) => {
+   586→      try {
+   587→        n.stop();
+   588→      } catch { /* noop */ }
+   589→    });
+   590→  };
+   591→};
+   592→
+   593→const PENTATONIC = [220, 261.63, 293.66, 329.63, 392, 440, 523.25, 587.33, 659.25];
+   594→
+   595→const buildPiano: Builder = (ctx, out) => {
+   596→  const timers = new Timers();
+   597→  const s: Sources = { nodes: [] };
+   598→
+   599→  // warm air bed
+   600→  const air = noiseSource(ctx, s, "pink");
+   601→  const lp = ctx.createBiquadFilter();
+   602→  lp.type = "lowpass";
+   603→  lp.frequency.value = 2600;
+   604→  const airGain = ctx.createGain();
+   605→  airGain.gain.value = 0.012;
+   606→  air.connect(lp).connect(airGain).connect(out);
+   607→
+   608→  const padBus = ctx.createGain();
+   609→  padBus.gain.value = 1;
+   610→  const padLp = ctx.createBiquadFilter();
+   611→  padLp.type = "lowpass";
+   612→  padLp.frequency.value = 1600;
+   613→  padBus.connect(padLp).connect(out);
+   614→
+   615→  const live: { gain: GainNode; nodes: AudioScheduledSourceNode[] }[] = [];
+   616→
+   617→  const playPadChord = () => {
+   618→    // fade the previous chord out slowly
+   619→    const previous = live.splice(0, live.length);
+   620→    previous.forEach((ch) => {
+   621→      const t = ctx.currentTime;
+   622→      ch.gain.gain.setTargetAtTime(0.0001, t, 4.5);
+   623→      timers.after(15000, () => {
+   624→        ch.nodes.forEach((n) => {
+   625→          try {
+   626→            n.stop();
+   627→          } catch { /* noop */ }
+   628→        });
+   629→        try {
+   630→          ch.gain.disconnect();
+   631→        } catch { /* noop */ }
+   632→      });
+   633→    });
+   634→
+   635→    const rootI = Math.floor(rnd(0, 4));
+   636→    const chord = [PENTATONIC[rootI], PENTATONIC[rootI + 2], PENTATONIC[rootI + 4]];
+   637→    const chordGain = ctx.createGain();
+   638→    chordGain.gain.setValueAtTime(0.0001, ctx.currentTime);
+   639→    chordGain.gain.setTargetAtTime(0.16, ctx.currentTime, 3.4);
+   640→    chordGain.connect(padBus);
+   641→
+   642→    const chordNodes: AudioScheduledSourceNode[] = [];
+   643→    chord.forEach((f) => {
+   644→      [-4, 3].forEach((cents) => {
+   645→        const osc = ctx.createOscillator();
+   646→        osc.type = "sine";
+   647→        osc.frequency.value = f;
+   648→        osc.detune.value = cents;
+   649→        const g = ctx.createGain();
+   650→        g.gain.value = 0.5 / chord.length;
+   651→        osc.connect(g).connect(chordGain);
+   652→        osc.start();
+   653→        chordNodes.push(osc);
+   654→      });
+   655→    });
+   656→    live.push({ gain: chordGain, nodes: chordNodes });
+   657→  };
+   658→
+   659→  playPadChord();
+   660→  const padCycle = timers.every(rnd(13000, 18000), playPadChord);
+   661→
+   662→  // sparse felt-piano melody notes
+   663→  const melody = timers.every(rnd(5200, 10000), () => {
+   664→    const f = pick(PENTATONIC.filter((x) => x >= 329));
+   665→    tone(ctx, out, {
+   666→      type: "sine",
+   667→      freq: f,
+   668→      gain: rnd(0.03, 0.06),
+   669→      attack: 0.02,
+   670→      decay: rnd(2.8, 4.6),
+   671→      lowpass: 1400,
+   672→    });
+   673→    tone(ctx, out, {
+   674→      type: "sine",
+   675→      freq: f * 2,
+   676→      gain: rnd(0.006, 0.014),
+   677→      attack: 0.02,
+   678→      decay: rnd(1.6, 2.4),
+   679→      lowpass: 2400,
+   680→    });
+   681→  });
+   682→
+   683→  return () => {
+   684→    padCycle();
+   685→    melody();
+   686→    timers.dispose();
+   687→    live.forEach((ch) =>
+   688→      ch.nodes.forEach((n) => {
+   689→        try {
+   690→          n.stop();
+   691→        } catch { /* noop */ }
+   692→      })
+   693→    );
+   694→    s.nodes.forEach((n) => {
+   695→      try {
+   696→        n.stop();
+   697→      } catch { /* noop */ }
+   698→    });
+   699→  };
+   700→};
+   701→
+   702→const buildTrain: Builder = (ctx, out) => {
+   703→  const timers = new Timers();
+   704→  const s: Sources = { nodes: [] };
+   705→
+   706→  // deep rumble of the rolling stock
+   707→  const rumble = noiseSource(ctx, s, "brown");
+   708→  const rLp = ctx.createBiquadFilter();
+   709→  rLp.type = "lowpass";
+   710→  rLp.frequency.value = 110;
+   711→  const rGain = ctx.createGain();
+   712→  rGain.gain.value = 0.17;
+   713→  rumble.connect(rLp).connect(rGain).connect(out);
+   714→
+   715→  // the whole car gently rocking
+   716→  const rock = ctx.createOscillator();
+   717→  rock.frequency.value = 0.17;
+   718→  const rockAmt = ctx.createGain();
+   719→  rockAmt.gain.value = 0.05;
+   720→  rock.connect(rockAmt).connect(rGain.gain);
+   721→  rock.start();
+   722→
+   723→  // wind combing past the window
+   724→  const wind = noiseSource(ctx, s, "pink");
+   725→  const wLp = ctx.createBiquadFilter();
+   726→  wLp.type = "lowpass";
+   727→  wLp.frequency.value = 760;
+   728→  const wGain = ctx.createGain();
+   729→  wGain.gain.value = 0.05;
+   730→  wind.connect(wLp).connect(wGain).connect(out);
+   731→  const wLfo = ctx.createOscillator();
+   732→  wLfo.frequency.value = 0.07;
+   733→  const wLfoAmt = ctx.createGain();
+   734→  wLfoAmt.gain.value = 0.028;
+   735→  wLfo.connect(wLfoAmt).connect(wGain.gain);
+   736→  wLfo.start();
+   737→  s.nodes.push(rock, wLfo);
+   738→
+   739→  // track joints — a hypnotic clack…clack pair drifting around 36 bpm
+   740→  let period = rnd(1650, 1850);
+   741→  const scheduleClack = () => {
+   742→    burst(ctx, out, {
+   743→      filter: { type: "bandpass", freq: rnd(700, 1000), q: 1.2 },
+   744→      gain: rnd(0.04, 0.08),
+   745→      decay: 0.09,
+   746→    });
+   747→    timers.after(rnd(110, 150), () =>
+   748→      burst(ctx, out, {
+   749→        filter: { type: "bandpass", freq: rnd(600, 900), q: 1.2 },
+   750→        gain: rnd(0.03, 0.06),
+   751→        decay: 0.08,
+   752→      })
+   753→    );
+   754→    timers.after(period, scheduleClack);
+   755→    period = rnd(1600, 1950);
+   756→  };
+   757→  scheduleClack();
+   758→
+   759→  // a horn somewhere across the valley, rare and low
+   760→  const horn = timers.every(rnd(50000, 100000), () => {
+   761→    const t = ctx.currentTime;
+   762→    [110, 164.8].forEach((f) => {
+   763→      const osc = ctx.createOscillator();
+   764→      osc.type = "sine";
+   765→      osc.frequency.value = f;
+   766→      osc.detune.value = rnd(-6, 6);
+   767→      const g = ctx.createGain();
+   768→      g.gain.setValueAtTime(0.0001, t);
+   769→      g.gain.exponentialRampToValueAtTime(0.026, t + 0.9);
+   770→      g.gain.setValueAtTime(0.026, t + 2.1);
+   771→      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+   772→      const lp = ctx.createBiquadFilter();
+   773→      lp.type = "lowpass";
+   774→      lp.frequency.value = 520;
+   775→      osc.connect(g).connect(lp).connect(out);
+   776→      osc.start(t);
+   777→      osc.stop(t + 3.8);
+   778→    });
+   779→  });
+   780→
+   781→  return () => {
+   782→    horn();
+   783→    timers.dispose();
+   784→    s.nodes.forEach((n) => {
+   785→      try {
+   786→        n.stop();
+   787→      } catch { /* noop */ }
+   788→    });
+   789→  };
+   790→};
+   791→
+   792→/* one struck singing bowl: inharmonic partials with long decay + gentle beating */
+   793→function strikeBowl(ctx: AudioContext, out: AudioNode, baseFreq: number, velocity = 1) {
+   794→  const t = ctx.currentTime;
+   795→  const pan = ctx.createStereoPanner?.();
+   796→  const destination = pan ? (pan.connect(out), pan) : out;
+   797→  if (pan) pan.pan.value = rnd(-0.55, 0.55);
+   798→
+   799→  // classic bowl mode ratios (inharmonic, slightly stretched)
+   800→  const modes: [number, number, number][] = [
+   801→    // [ratio, gain, decaySeconds]
+   802→    [1, 1, rnd(9, 13)],
+   803→    [2.71, 0.42, rnd(7, 10)],
+   804→    [5.18, 0.2, rnd(5, 8)],
+   805→    [8.9, 0.09, rnd(3.5, 5.5)],
+   806→  ];
+   807→
+   808→  modes.forEach(([ratio, gain, decay]) => {
+   809→    // two slightly detuned oscillators per mode → slow audible beating
+   810→    const beat = ratio === 1 ? rnd(0.6, 1.4) : rnd(1, 2.2);
+   811→    for (const detune of [-beat, beat]) {
+   812→      const osc = ctx.createOscillator();
+   813→      osc.type = "sine";
+   814→      osc.frequency.value = baseFreq * ratio;
+   815→      osc.detune.value = detune * 100 * 0.06; // cents — a whisper off pitch
+   816→      const g = ctx.createGain();
+   817→      const amp = gain * velocity * 0.05;
+   818→      g.gain.setValueAtTime(0.0001, t);
+   819→      g.gain.exponentialRampToValueAtTime(Math.max(amp, 0.0002), t + rnd(0.03, 0.12));
+   820→      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+   821→      osc.connect(g).connect(destination);
+   822→      osc.start(t);
+   823→      osc.stop(t + decay + 0.1);
+   824→    }
+   825→  });
+   826→
+   827→  // the mallet touch itself — a soft filtered knock
+   828→  burst(ctx, destination, {
+   829→    filter: { type: "bandpass", freq: baseFreq * 2.4, q: 1.4 },
+   830→    gain: 0.05 * velocity,
+   831→    decay: 0.14,
+   832→  });
+   833→}
+   834→
+   835→const buildBowls: Builder = (ctx, out) => {
+   836→  const timers = new Timers();
+   837→  const s: Sources = { nodes: [] };
+   838→
+   839→  // warm dark drone beneath everything (root + fifth, slow beating)
+   840→  [110, 164.8].forEach((f, i) => {
+   841→    for (const detune of [-4, 4]) {
+   842→      const osc = ctx.createOscillator();
+   843→      osc.type = "sine";
+   844→      osc.frequency.value = f;
+   845→      osc.detune.value = detune;
+   846→      const g = ctx.createGain();
+   847→      g.gain.value = i === 0 ? 0.028 : 0.016;
+   848→      const lfo = ctx.createOscillator();
+   849→      lfo.frequency.value = rnd(0.05, 0.09);
+   850→      const lfoAmt = ctx.createGain();
+   851→      lfoAmt.gain.value = g.gain.value * 0.45;
+   852→      lfo.connect(lfoAmt).connect(g.gain);
+   853→      osc.connect(g).connect(out);
+   854→      osc.start();
+   855→      lfo.start();
+   856→      s.nodes.push(osc, lfo);
+   857→    }
+   858→  });
+   859→
+   860→  // faint stone-room shimmer: high-passed pink noise breathing
+   861→  const air = noiseSource(ctx, s, "pink");
+   862→  const hp = ctx.createBiquadFilter();
+   863→  hp.type = "highpass";
+   864→  hp.frequency.value = 2400;
+   865→  const aGain = ctx.createGain();
+   866→  aGain.gain.value = 0.012;
+   867→  air.connect(hp).connect(aGain).connect(out);
+   868→  const aLfo = ctx.createOscillator();
+   869→  aLfo.frequency.value = 0.06;
+   870→  const aLfoAmt = ctx.createGain();
+   871→  aLfoAmt.gain.value = 0.007;
+   872→  aLfo.connect(aLfoAmt).connect(aGain.gain);
+   873→  aLfo.start();
+   874→  s.nodes.push(aLfo);
+   875→
+   876→  // the bowls themselves — one every 9–16 s, occasionally a soft double-tap
+   877→  const bowlNotes = [196, 220, 261.6, 293.7, 349.2, 392];
+   878→  let lastNote = -1;
+   879→  const scheduleBowl = () => {
+   880→    let idx = Math.floor(Math.random() * bowlNotes.length);
+   881→    if (idx === lastNote) idx = (idx + 1) % bowlNotes.length;
+   882→    lastNote = idx;
+   883→    strikeBowl(ctx, out, bowlNotes[idx], rnd(0.75, 1.1));
+   884→    if (Math.random() < 0.22) {
+   885→      timers.after(rnd(700, 1300), () => strikeBowl(ctx, out, bowlNotes[idx] * 1.5, 0.4));
+   886→    }
+   887→    timers.after(rnd(9000, 16000), scheduleBowl);
+   888→  };
+   889→  timers.after(rnd(400, 1200), scheduleBowl);
+   890→
+   891→  return () => {
+   892→    timers.dispose();
+   893→    s.nodes.forEach((n) => {
+   894→      try {
+   895→        n.stop();
+   896→      } catch { /* noop */ }
+   897→    });
+   898→  };
+   899→};
+   900→
+   901→const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
+   902→  rain: buildRain,
+   903→  forest: buildForest,
+   904→  ocean: buildOcean,
+   905→  cafe: buildCafe,
+   906→  fireplace: buildFire,
+   907→  piano: buildPiano,
+   908→  train: buildTrain,
+   909→  bowls: buildBowls,
+   910→};
+   911→
+   912→const MIX_BUILDERS: Record<MixLayerId, Builder> = {
+   913→  rain: buildRain,
+   914→  wind: buildWind,
+   915→  fire: buildFire,
+   916→};
+   917→
+   918→/* mix layers are a touch quieter than the featured soundscape */
+   919→const MIX_SCALE: Record<MixLayerId, number> = { rain: 0.85, wind: 0.9, fire: 0.8 };
+   920→
+   921→/* ─────────────────────────── the engine ──────────────────────── */
+   922→
+   923→interface LayerState {
+   924→  gain: GainNode;
+   925→  dispose: Dispose;
+   926→}
+   927→
+   928→export class AudioEngine {
+   929→  private ctx: AudioContext | null = null;
+   930→  private fade!: GainNode;
+   931→  private duck!: GainNode;
+   932→  private master!: GainNode;
+   933→  private analyser: AnalyserNode | null = null;
+   934→  private analyserData: Uint8Array<ArrayBuffer> | null = null;
+   935→  private base: LayerState | null = null;
+   936→  private baseId: SoundscapeId | null = null;
+   937→  private mix: Partial<Record<MixLayerId, LayerState>> = {};
+   938→  private masterVolume = 0.9;
+   939→  private baseTrim = 1; // trim for the currently-loading base
+   940→  private baseTrims: Partial<Record<SoundscapeId, number>> = {}; // per-soundscape room level 0.4..1.2
+   941→
+   942→  get context(): AudioContext | null {
+   943→    return this.ctx;
+   944→  }
+   945→
+   946→  get currentBase(): SoundscapeId | null {
+   947→    return this.baseId;
+   948→  }
+   949→
+   950→  ensureContext(): AudioContext {
+   951→    if (!this.ctx) {
+   952→      const AC: typeof AudioContext =
+   953→        window.AudioContext ||
+   954→        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+   955→      this.ctx = new AC();
+   956→      this.fade = this.ctx.createGain();
+   957→      this.fade.gain.value = 1;
+   958→      this.duck = this.ctx.createGain();
+   959→      this.duck.gain.value = 1;
+   960→      this.master = this.ctx.createGain();
+   961→      this.master.gain.value = this.masterVolume;
+   962→      this.analyser = this.ctx.createAnalyser();
+   963→      this.analyser.fftSize = 256;
+   964→      this.analyser.smoothingTimeConstant = 0.82;
+   965→      this.analyserData = new Uint8Array(new ArrayBuffer(this.analyser.frequencyBinCount));
+   966→      const comp = this.ctx.createDynamicsCompressor();
+   967→      comp.threshold.value = -20;
+   968→      comp.knee.value = 18;
+   969→      comp.ratio.value = 4;
+   970→      this.fade.connect(this.duck).connect(this.master).connect(comp).connect(this.ctx.destination);
+   971→      this.master.connect(this.analyser);
+   972→    }
+   973→    if (this.ctx.state === "suspended") void this.ctx.resume();
+   974→    return this.ctx;
+   975→  }
+   976→
+   977→  /** start (or crossfade to) a featured soundscape */
+   978→  async playBase(id: SoundscapeId, fadeInSeconds = 2.4) {
+   979→    const ctx = this.ensureContext();
+   980→    if (this.baseId === id && this.base) return;
+   981→    if (this.base) {
+   982→      const old = this.base;
+   983→      old.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.9);
+   984→      setTimeout(() => {
+   985→        old.dispose();
+   986→        try {
+   987→          old.gain.disconnect();
+   988→        } catch { /* noop */ }
+   989→      }, 4200);
+   990→    }
+   991→    const gain = ctx.createGain();
+   992→    gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+   993→    this.baseTrim = this.baseTrims[id] ?? 1;
+   994→    gain.gain.setTargetAtTime(this.baseTrim, ctx.currentTime, fadeInSeconds / 3);
+   995→    gain.connect(this.fade);
+   996→    const dispose = BASE_BUILDERS[id](ctx, gain);
+   997→    this.base = { gain, dispose };
+   998→    this.baseId = id;
+   999→  }
+  1000→
+  1001→  /** per-soundscape room level (0.4..1.2) — live-ramps only the matching active base */
+  1002→  setBaseTrim(id: SoundscapeId, v: number) {
+  1003→    const clamped = Math.max(0.4, Math.min(1.2, v));
+  1004→    this.baseTrims[id] = clamped;
+  1005→    if (this.ctx && this.base && this.baseId === id) {
+  1006→      this.base.gain.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.25);
+  1007→    }
+  1008→  }
+  1009→
+  1010→  getTrim(id: SoundscapeId): number {
+  1011→    return this.baseTrims[id] ?? 1;
+  1012→  }
+  1013→
+  1014→  /** set a mixer layer level 0..1; builds/disposes lazily */
+  1015→  setMixLayer(id: MixLayerId, level: number) {
+  1016→    const ctx = this.ensureContext();
+  1017→    const existing = this.mix[id];
+  1018→    if (level <= 0.005) {
+  1019→      if (existing) {
+  1020→        existing.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.5);
+  1021→        setTimeout(() => {
+  1022→          existing.dispose();
+  1023→          try {
+  1024→            existing.gain.disconnect();
+  1025→          } catch { /* noop */ }
+  1026→        }, 2600);
+  1027→        delete this.mix[id];
+  1028→      }
+  1029→      return;
+  1030→    }
+  1031→    if (!existing) {
+  1032→      const gain = ctx.createGain();
+  1033→      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  1034→      gain.gain.setTargetAtTime(level * MIX_SCALE[id], ctx.currentTime, 1.1);
+  1035→      gain.connect(this.fade);
+  1036→      const dispose = MIX_BUILDERS[id](ctx, gain);
+  1037→      this.mix[id] = { gain, dispose };
+  1038→    } else {
+  1039→      existing.gain.gain.setTargetAtTime(level * MIX_SCALE[id], ctx.currentTime, 0.25);
+  1040→    }
+  1041→  }
+  1042→
+  1043→  setMasterVolume(v: number) {
+  1044→    this.masterVolume = v;
+  1045→    if (this.ctx) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.12);
+  1046→  }
+  1047→
+  1048→  /** timer fade — call each tick with remaining/duration when inside last minute */
+  1049→  setFadeFactor(f: number, rampSeconds = 0.6) {
+  1050→    if (!this.ctx) return;
+  1051→    const clamped = Math.max(0.0001, Math.min(1, f));
+  1052→    this.fade.gain.setTargetAtTime(clamped, this.ctx.currentTime, rampSeconds / 3);
+  1053→  }
+  1054→
+  1055→  /** duck the bed under a narrated voice — 0 = full, 1 = eased to a quarter */
+  1056→  setDuck(amount: number, rampSeconds = 1.4) {
+  1057→    if (!this.ctx) return;
+  1058→    const clamped = Math.max(0, Math.min(1, amount));
+  1059→    this.duck.gain.setTargetAtTime(1 - clamped * 0.75, this.ctx.currentTime, rampSeconds / 3);
+  1060→  }
+  1061→
+  1062→  resetFade() {
+  1063→    if (!this.ctx) return;
+  1064→    this.fade.gain.setTargetAtTime(1, this.ctx.currentTime, 0.8);
+  1065→  }
+  1066→
+  1067→  stopAll(fadeSeconds = 1) {
+  1068→    if (!this.ctx) return;
+  1069→    this.fade.gain.setTargetAtTime(0.0001, this.ctx.currentTime, fadeSeconds / 3);
+  1070→    const kill = () => {
+  1071→      this.base?.dispose();
+  1072→      this.base = null;
+  1073→      this.baseId = null;
+  1074→      Object.values(this.mix).forEach((l) => l?.dispose());
+  1075→      this.mix = {};
+  1076→      setTimeout(() => {
+  1077→        try {
+  1078→          this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
+  1079→        } catch { /* noop */ }
+  1080→      }, 300);
+  1081→    };
+  1082→    setTimeout(kill, fadeSeconds * 1000 + 150);
+  1083→  }
+  1084→
+  1085→  get isSilent() {
+  1086→    return !this.base;
+  1087→  }
+  1088→
+  1089→  /**
+  1090→   * A soft bell, routed around the timer fade (straight to master).
+  1091→   * kind "complete" — single low bell when a sleep timer runs its course.
+  1092→   * kind "sunrise"  — gentle rising motif for the wake light, repeats 3×.
+  1093→   */
+  1094→  playChime(kind: "complete" | "sunrise" = "complete") {
+  1095→    const ctx = this.ensureContext();
+  1096→    if (ctx.state === "suspended") void ctx.resume();
+  1097→    const bus = ctx.createGain();
+  1098→    bus.gain.value = 0.5;
+  1099→    bus.connect(this.master);
+  1100→
+  1101→    const bell = (freq: number, at: number, level: number, decay = 4.5) => {
+  1102→      const partials = [
+  1103→        { f: freq, g: 1 },
+  1104→        { f: freq * 2.01, g: 0.34 },
+  1105→        { f: freq * 2.99, g: 0.11 },
+  1106→      ];
+  1107→      partials.forEach(({ f, g }) => {
+  1108→        const osc = ctx.createOscillator();
+  1109→        osc.type = "sine";
+  1110→        osc.frequency.value = f;
+  1111→        const g1 = ctx.createGain();
+  1112→        g1.gain.setValueAtTime(0.0001, at);
+  1113→        g1.gain.exponentialRampToValueAtTime(level * g, at + 0.06);
+  1114→        g1.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+  1115→        osc.connect(g1).connect(bus);
+  1116→        osc.start(at);
+  1117→        osc.stop(at + decay + 0.2);
+  1118→      });
+  1119→    };
+  1120→
+  1121→    const t0 = ctx.currentTime + 0.08;
+  1122→    if (kind === "complete") {
+  1123→      // A4 then E5 — "it is safe to sleep now"
+  1124→      bell(432, t0, 0.2, 5);
+  1125→      bell(648, t0 + 0.9, 0.13, 5.5);
+  1126→    } else {
+  1127→      // C5 · E5 · G5 rising, thrice, softer each time
+  1128→      const motif = [523.25, 659.25, 783.99];
+  1129→      for (let rep = 0; rep < 3; rep++) {
+  1130→        const start = t0 + rep * 5.2;
+  1131→        motif.forEach((f, i) => bell(f, start + i * 0.85, 0.16 * (1 - rep * 0.26), 4));
+  1132→      }
+  1133→    }
+  1134→    // release the bus long after the last partial dies
+  1135→    setTimeout(() => {
+  1136→      try {
+  1137→        bus.disconnect();
+  1138→      } catch { /* noop */ }
+  1139→    }, (kind === "complete" ? 8 : 22) * 1000);
+  1140→  }
+  1141→
+  1142→  /** RMS loudness 0..1 — for gentle audio-reactive visuals */
+  1143→  getLevel(): number {
+  1144→    if (!this.analyser || !this.analyserData || !this.ctx) return 0;
+  1145→    this.analyser.getByteFrequencyData(this.analyserData);
+  1146→    let sum = 0;
+  1147→    for (let i = 0; i < this.analyserData.length; i++) sum += this.analyserData[i];
+  1148→    return Math.min(1, sum / this.analyserData.length / 140);
+  1149→  }
+  1150→}
+  1151→
+  1152→export const audioEngine = new AudioEngine();
+  1153→
+  1154→/** QA/debug handle — lets test harnesses inspect the live audio graph */
+  1155→if (typeof window !== "undefined") {
+  1156→  (window as unknown as { __lunaEngine?: AudioEngine }).__lunaEngine = audioEngine;
+  1157→}
+  1158→

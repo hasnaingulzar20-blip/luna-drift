@@ -316,3 +316,10 @@ input[type="number"] {
 input[type="number"]::-webkit-inner-spin-button {
   opacity: 0.35;
 }
+
+/* a whisper of press feedback on every control — the page answers the hand */
+@media (prefers-reduced-motion: no-preference) {
+  button:not(:disabled):active {
+    transform: scale(0.98);
+  }
+}

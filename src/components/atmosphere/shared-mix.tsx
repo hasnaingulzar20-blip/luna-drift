@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link2, X } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
@@ -18,13 +18,25 @@ export interface ShareablePreset {
   fire: number;
 }
 
-function base64UrlEncode(json: string): string {
+export function base64UrlEncode(json: string): string {
   const bytes = new TextEncoder().encode(json);
   let bin = "";
   bytes.forEach((b) => {
     bin += String.fromCharCode(b);
   });
   return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** base64url → utf-8 string; null when malformed */
+export function base64UrlDecode(encoded: string): string | null {
+  try {
+    let b64 = encoded.replace(/-/g, "+").replace(/_/g, "/");
+    while (b64.length % 4) b64 += "=";
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 /** Build a shareable URL carrying a single preset in the hash. */
@@ -78,8 +90,17 @@ function decodeMixLink(hash: string): DecodedMix | null {
 }
 
 export default function SharedMixBanner() {
-  const [shared, setShared] = useState<DecodedMix | null>(null);
+  const [shared, setSharedState] = useState<DecodedMix | null>(null);
   const [added, setAdded] = useState(false);
+  const sharedRef = useRef<DecodedMix | null>(null);
+
+  // every new arrival resets the accepted flag, so a second link always
+  // shows a fresh offer instead of a stale "added" note
+  const setShared = (next: DecodedMix | null) => {
+    sharedRef.current = next;
+    setSharedState(next);
+    setAdded(false);
+  };
 
   useEffect(() => {
     const check = () => {
@@ -109,10 +130,14 @@ export default function SharedMixBanner() {
     setAdded(res.added > 0);
     if (res.added > 0) {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
-      window.setTimeout(() => setShared(null), 3600);
+      window.setTimeout(() => {
+        if (sharedRef.current === shared) setShared(null);
+      }, 3600);
     } else {
       // already on the shelf (name collision) — say so, then dismiss
-      window.setTimeout(dismiss, 2400);
+      window.setTimeout(() => {
+        if (sharedRef.current === shared) dismiss();
+      }, 2400);
     }
   };
 

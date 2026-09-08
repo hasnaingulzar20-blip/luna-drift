@@ -9,7 +9,9 @@ import MediaSessionBridge from "@/components/atmosphere/media-session";
 import WakeLight from "@/components/atmosphere/wake-light";
 import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
+import IntroCurtain from "@/components/atmosphere/intro-curtain";
 import SharedMixBanner from "@/components/atmosphere/shared-mix";
+import SharedSequenceBanner from "@/components/atmosphere/shared-sequence";
 import SiteHeader from "@/components/sections/site-header";
 import Hero from "@/components/sections/hero";
 import Library from "@/components/sections/library";
@@ -120,8 +122,14 @@ export default function Home() {
 
       {immersive && <ImmersiveHint />}
 
+      {/* the entrance, once per visit */}
+      <IntroCurtain />
+
       {/* a mix that drifted in with the link */}
       <SharedMixBanner />
+
+      {/* a handover that drifted in with the link */}
+      <SharedSequenceBanner />
 
       {/* quiet keys */}
       <ShortcutsDialog />

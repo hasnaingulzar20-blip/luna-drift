@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePlayer } from "@/store/player";
+import { audioEngine } from "@/lib/audio-engine";
 
 interface Star {
   x: number;
@@ -65,12 +66,23 @@ export default function Starfield() {
     window.addEventListener("resize", seed);
 
     let last = performance.now();
+    let audioLevel = 0;
+    let lastAudioSample = 0;
     const draw = (now: number) => {
       const dt = Math.min((now - last) / 1000, 0.05);
       last = now;
       const w = canvas.width / dpr;
       const h = canvas.height / dpr;
       const intensity = usePlayer.getState().starIntensity;
+
+      // audio-reactive shimmer: sample the live soundscape ~10×/s and ease
+      // toward it, so the sky breathes with the room that is playing
+      if (now - lastAudioSample > 100) {
+        lastAudioSample = now;
+        const target = usePlayer.getState().isPlaying ? audioEngine.getLevel() : 0;
+        audioLevel += (target - audioLevel) * 0.25;
+      }
+      const shimmer = audioLevel;
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, w, h);
@@ -82,21 +94,24 @@ export default function Starfield() {
         s.y += drift * (0.4 + s.r * 0.4);
         if (s.y > h + 2) s.y = -2;
         const tw = 0.62 + 0.38 * Math.sin(now * 0.001 * s.speed + s.phase);
-        const alpha = Math.min(1, s.baseAlpha * tw * intensity);
+        // bigger stars answer the sound a little more than faint ones
+        const boost = 1 + shimmer * 0.55 * (0.45 + s.r * 0.4);
+        const alpha = Math.min(1, s.baseAlpha * tw * intensity * boost);
         if (alpha <= 0.015) continue;
+        const r = s.r * (1 + shimmer * 0.3);
         ctx.beginPath();
-        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.arc(s.x, s.y, r, 0, Math.PI * 2);
         ctx.fillStyle = s.warm
           ? `rgba(236, 226, 200, ${alpha})`
           : `rgba(214, 224, 250, ${alpha})`;
         ctx.fill();
-        // faint halo on the brightest few
+        // faint halo on the brightest few — warms further while sound flows
         if (s.r > 1.4) {
           ctx.beginPath();
-          ctx.arc(s.x, s.y, s.r * 3.2, 0, Math.PI * 2);
+          ctx.arc(s.x, s.y, r * 3.2, 0, Math.PI * 2);
           ctx.fillStyle = s.warm
-            ? `rgba(205, 180, 124, ${alpha * 0.08})`
-            : `rgba(160, 178, 220, ${alpha * 0.07})`;
+            ? `rgba(205, 180, 124, ${alpha * (0.08 + shimmer * 0.12)})`
+            : `rgba(160, 178, 220, ${alpha * (0.07 + shimmer * 0.11)})`;
           ctx.fill();
         }
       }
