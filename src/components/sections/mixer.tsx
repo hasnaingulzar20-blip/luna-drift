@@ -1,9 +1,10 @@
 "use client";
 
-import { CloudRain, Flame, Info, Volume2, Wind, Shuffle } from "lucide-react";
+import { useState } from "react";
+import { CloudRain, Flame, Info, Plus, Star, Trash2, Volume2, Wind, Shuffle } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { usePlayer } from "@/store/player";
-import { MIXER_LAYERS, MIX_PRESETS, TONIGHTS_PICK, type MixerLayerId } from "@/lib/soundscapes";
+import { MIXER_LAYERS, MIX_PRESETS, TONIGHTS_PICK, getSoundscape, type MixerLayerId } from "@/lib/soundscapes";
 
 const LAYER_ICONS = {
   rain: CloudRain,
@@ -25,6 +26,11 @@ export default function Mixer() {
   const setMasterVolume = usePlayer((s) => s.setMasterVolume);
   const applyPreset = usePlayer((s) => s.applyPreset);
   const playSoundscape = usePlayer((s) => s.playSoundscape);
+  const customPresets = usePlayer((s) => s.customPresets);
+  const saveCustomPreset = usePlayer((s) => s.saveCustomPreset);
+  const deleteCustomPreset = usePlayer((s) => s.deleteCustomPreset);
+  const [presetName, setPresetName] = useState("");
+  const [saving, setSaving] = useState(false);
 
   const onLayerChange = (id: MixerLayerId, v: number) => {
     // dragging a layer while silent gently wakes tonight's drift
@@ -84,6 +90,86 @@ export default function Mixer() {
                     </span>
                   </button>
                 ))}
+
+                {/* ── your own presets ── */}
+                {customPresets.length > 0 && (
+                  <div className="space-y-2.5 pt-2">
+                    <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
+                      <Star className="h-3 w-3 fill-moon-300/40" aria-hidden="true" /> your shelf
+                    </p>
+                    {customPresets.map((p) => (
+                      <div
+                        key={p.id}
+                        className="group flex w-full items-center justify-between gap-2 rounded-xl border border-moon-200/15 bg-moon-200/[0.05] px-4 py-3 transition hover:border-moon-200/35"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => applyPreset(p)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <span className="block truncate text-sm text-moon-100">{p.name}</span>
+                          <span className="mt-0.5 block truncate text-[11px] text-mist-400">
+                            {getSoundscape(p.base).name} · rain {Math.round(p.rain * 100)} · wind {Math.round(p.wind * 100)} · fire {Math.round(p.fire * 100)}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteCustomPreset(p.id)}
+                          aria-label={`Delete preset ${p.name}`}
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* ── save current mix ── */}
+                {saving ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (saveCustomPreset(presetName)) {
+                        setPresetName("");
+                        setSaving(false);
+                      }
+                    }}
+                    className="flex items-center gap-2 rounded-xl border border-moon-200/20 bg-white/[0.03] px-3 py-2"
+                  >
+                    <input
+                      autoFocus
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setSaving(false);
+                          setPresetName("");
+                        }
+                      }}
+                      placeholder="Name this mix…"
+                      maxLength={32}
+                      aria-label="Preset name"
+                      className="min-w-0 flex-1 bg-transparent text-sm text-moon-100 outline-none placeholder:text-mist-600"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!presetName.trim()}
+                      className="rounded-full bg-moon-200 px-3 py-1 text-[11px] font-medium text-night-950 transition disabled:opacity-30"
+                    >
+                      Keep
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setSaving(true)}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/10 px-4 py-2.5 text-xs text-mist-400 transition hover:border-moon-200/30 hover:text-moon-100"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                    Keep the current mix as a preset
+                  </button>
+                )}
               </div>
             </div>
 

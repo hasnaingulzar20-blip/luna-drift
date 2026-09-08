@@ -70,3 +70,25 @@ Stage Summary:
 - App now has 7 soundscapes, 8 sections (Tonight, Library, Mixer, Stories, Breathe, Timer, Journal + immersive sky), OS-level media controls, and keyboard-first operation.
 - All round-2 features verified working; no known bugs outstanding.
 - Next-phase recommendations: favorites (star a soundscape, filter/sort); "continue where you drifted" resume chip in hero (localStorage last-played); wake-light/alarm feature; more mix presets + custom preset saving; soundscape volume trims per base; PWA manifest + offline shell; weekly journal insights (best night, avg session); subtle Web Audio analyser-driven visual pulse in the hero art while playing.
+
+---
+
+Task ID: 3
+Agent: cron webDevReview (round 3)
+Task: QA assessment + favorites + resume chip + journal insights + custom presets + audio-reactive hero + PWA manifest
+
+Work Log:
+- QA assessment first: app healthy (GET / 200, zero console errors, all images load after lazy-load, playback/timer/mobile re-verified). No regressions → proceeded to feature round.
+- [Feature] Favorites: `favorites: SoundscapeId[]` in player store (persisted); star toggle button on every library card (top-left glass chip, glows when active, reveals on hover, aria-pressed); filter tablist "All rooms / ★ Favorites (count)"; dedicated empty state with "Browse all rooms" reset. Verified: star 2 → filter shows exactly those 2 → persists across reload via localStorage.
+- [Feature] "Continue where you drifted": `lastPlayed {id, at}` recorded on every playSoundscape (persisted); hero renders a resume chip (artwork thumb + soundscape name + relative time + play affordance) whenever last-played exists, isn't currently live, and isn't tonight's pick. Verified full cycle: play Night Train → stop → chip appears → clicking chip restarts it.
+- [Feature] Journal insights: GET /api/profile now also returns `insights {sessions, avgMinutes, bestNight{day,minutes}, topSoundscape, topSoundscapeMinutes}` (count + all-time aggregation queries added); journal week-chart panel renders a 3-cell insights strip (avg drift, best night, most heard) when ≥1 session. Verified with 2 seeded sessions (avg 38m, best Tue 75m, most heard Rain on Glass 45m); test data cleaned afterwards (sessions deleted, profile stats reset).
+- [Feature] Custom mixer presets: store `customPresets` (persisted, max 6) + `saveCustomPreset(name)` / `deleteCustomPreset(id)`; mixer gains inline "Keep the current mix as a preset" → name input (Escape cancels) → presets appear under a "your shelf" heading with base + layer percentages and hover-reveal delete button. Verified save/apply/delete end-to-end.
+- [Feature] Audio-reactive hero artwork: AnalyserNode tapped off master gain in audio-engine (`getLevel()` RMS 0..1); hero art overlay breathes via rAF while playing. Headless QA found ctx stays "suspended" (no audio hardware — resume() hangs; environment limitation, not an app bug), so the pulse blends a slow synthetic ~9s breathe fallback when analyser reads 0; real browsers get organic reactivity. Verified opacity oscillates (0.51↔0.75) while playing, resets to 0 on stop.
+- [Infra] PWA: public/manifest.webmanifest (standalone, #04060f, maskable icon); sharp-generated icon-192/512.png + apple-touch-icon.png from favicon.svg; layout metadata manifest + icon set + appleWebApp. Verified manifest 200 + link tag present.
+- [Debug aid] `window.__lunaEngine` handle exported for QA harnesses.
+- [Styling] Library heading corrected to "Seven rooms of quiet"; filter chips as pill tablist with active moon-glow; star buttons with night-glass backdrop; resume chip w/ 44px thumb + hover lift; insights strip as ringed quiet cards; custom-preset form in moon-accent outline.
+
+Stage Summary:
+- Round 3 shipped 5 features (favorites, resume chip, journal insights, custom presets, audio-reactive hero) + PWA manifest; all browser-verified, lint clean, zero console errors.
+- Known environment quirk: headless Chrome has no audio output → AudioContext stays suspended and Web Audio is inaudible in QA; app logic unaffected (HTMLAudio narration verified separately). Analyser-driven visuals degrade gracefully to synthetic breathe.
+- Next-phase recommendations: wake-light/alarm; PWA offline shell (service worker); weekly journal trends line; per-soundscape volume trim; mix preset import/export; breathing guide haptics (vibration API); shareable "night card" image export.

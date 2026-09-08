@@ -12,11 +12,20 @@ interface SessionRow {
   endedAt: string;
 }
 
+interface InsightData {
+  sessions: number;
+  avgMinutes: number;
+  bestNight: { day: string; minutes: number } | null;
+  topSoundscape: string | null;
+  topSoundscapeMinutes: number;
+}
+
 interface ProfileData {
   streak: number;
   totalMinutes: number;
   week: { day: string; minutes: number }[];
   recent: SessionRow[];
+  insights?: InsightData;
 }
 
 function relTime(iso: string) {
@@ -193,6 +202,59 @@ export default function Journal() {
               A drift counts once it has carried you at least a minute. Timers that run to their
               fade are marked <span className="text-moon-300">full</span>.
             </p>
+
+            {/* insights strip */}
+            {data?.insights && data.insights.sessions > 0 && (
+              <div className="mt-4 grid gap-2.5 sm:grid-cols-3">
+                <div
+                  className="rounded-2xl bg-white/[0.03] px-4 py-3.5 ring-1 ring-white/6"
+                  aria-label="Average drift length"
+                >
+                  <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-mist-500">
+                    <Clock3 className="h-3 w-3 text-mist-400" aria-hidden="true" /> avg drift
+                  </p>
+                  <p className="mt-1.5 font-serif text-2xl font-light text-moon-100">
+                    {data.insights.avgMinutes}
+                    <span className="ml-1 text-sm text-mist-400">min</span>
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-mist-500">
+                    across {data.insights.sessions} drift{data.insights.sessions === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl bg-white/[0.03] px-4 py-3.5 ring-1 ring-white/6"
+                  aria-label="Best night this week"
+                >
+                  <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-mist-500">
+                    <MoonStar className="h-3 w-3 text-moon-300/80" aria-hidden="true" /> best night
+                  </p>
+                  <p className="mt-1.5 font-serif text-2xl font-light text-moon-100">
+                    {data.insights.bestNight ? data.insights.bestNight.day : "—"}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-mist-500">
+                    {data.insights.bestNight
+                      ? `${data.insights.bestNight.minutes} min of rest`
+                      : "the week is still young"}
+                  </p>
+                </div>
+                <div
+                  className="rounded-2xl bg-white/[0.03] px-4 py-3.5 ring-1 ring-white/6"
+                  aria-label="Most heard soundscape"
+                >
+                  <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-mist-500">
+                    <Sparkles className="h-3 w-3 text-moon-300/80" aria-hidden="true" /> most heard
+                  </p>
+                  <p className="mt-1.5 truncate font-serif text-2xl font-light text-moon-100">
+                    {data.insights.topSoundscape ? prettyName(data.insights.topSoundscape) : "—"}
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-mist-500">
+                    {data.insights.topSoundscape
+                      ? `${data.insights.topSoundscapeMinutes} min together`
+                      : "no favorite yet"}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

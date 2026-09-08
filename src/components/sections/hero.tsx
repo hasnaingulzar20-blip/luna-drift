@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Headphones, MoonStar, Pause, Play } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Headphones, History, MoonStar, Pause, Play } from "lucide-react";
 import { usePlayer } from "@/store/player";
-import { TONIGHTS_PICK, getSoundscape } from "@/lib/soundscapes";
+import { audioEngine } from "@/lib/audio-engine";
+import { TONIGHTS_PICK, getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 
 function moonPhase(date: Date): { label: string; illumination: number } {
   // synodic month reference: known new moon 2000-01-06 18:14 UTC
@@ -35,14 +36,31 @@ function greeting(h: number) {
   return "The deep of night";
 }
 
+function relDrift(at: number) {
+  const mins = Math.round((Date.now() - at) / 60000);
+  if (mins < 1) return "moments ago";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "last night" : `${days} nights ago`;
+}
+
 export default function Hero() {
   const active = usePlayer((s) => s.active);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const playSoundscape = usePlayer((s) => s.playSoundscape);
   const stopAll = usePlayer((s) => s.stopAll);
+  const lastPlayed = usePlayer((s) => s.lastPlayed);
 
   const pick = getSoundscape(TONIGHTS_PICK);
   const isThisActive = isPlaying && active === TONIGHTS_PICK;
+
+  // resume chip: last played, only when it isn't the live room or tonight's pick
+  const resumeItem =
+    lastPlayed && lastPlayed.id !== TONIGHTS_PICK && (!isPlaying || active !== lastPlayed.id)
+      ? { id: lastPlayed.id as SoundscapeId, at: lastPlayed.at, sc: getSoundscape(lastPlayed.id as SoundscapeId) }
+      : null;
 
   const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
@@ -55,6 +73,34 @@ export default function Hero() {
     };
   }, []);
   const phase = now ? moonPhase(now) : null;
+
+  // audio-reactive glow over the artwork (gentle, rAF-driven)
+  // analyser-driven when the context is live; falls back to a slow
+  // synthetic breathe so the art still glows in silent environments
+  const pulseRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isPlaying) {
+      if (pulseRef.current) pulseRef.current.style.opacity = "0";
+      return;
+    }
+    let raf = 0;
+    let level = 0;
+    const start = performance.now();
+    const loop = (t: number) => {
+      const organic = audioEngine.getLevel();
+      const synthetic =
+        0.28 + 0.16 * Math.sin(((t - start) / 9000) * Math.PI * 2); // ~9s breathe
+      const raw = Math.max(organic, organic > 0.001 ? 0 : synthetic * 0.8);
+      level += (raw - level) * 0.06; // extra smoothing for a slow breathe
+      if (pulseRef.current) {
+        pulseRef.current.style.opacity = String(Math.min(0.75, level * 2.2));
+        pulseRef.current.style.transform = `scale(${1 + level * 0.045})`;
+      }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [isPlaying]);
 
   return (
     <section id="tonight" aria-label="Tonight's pick" className="relative pt-32 sm:pt-36">
@@ -125,6 +171,35 @@ export default function Hero() {
             </div>
           </div>
 
+          {/* continue where you drifted */}
+          {resumeItem && (
+            <button
+              type="button"
+              onClick={() => playSoundscape(resumeItem.id)}
+              className="group/resume mt-5 flex w-full max-w-md items-center gap-3.5 rounded-2xl border border-white/6 bg-white/[0.03] px-4 py-3 text-left backdrop-blur-sm transition-all duration-300 hover:border-moon-200/30 hover:bg-moon-200/[0.06] sm:w-auto sm:max-w-none sm:pr-6"
+            >
+              <img
+                src={resumeItem.sc.image}
+                alt=""
+                aria-hidden="true"
+                className="h-11 w-11 shrink-0 rounded-xl object-cover ring-1 ring-white/10"
+              />
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.22em] text-moon-300/80">
+                  <History className="h-3 w-3" aria-hidden="true" />
+                  continue where you drifted
+                </span>
+                <span className="mt-0.5 block truncate text-sm text-moon-100">
+                  {resumeItem.sc.name}
+                  <span className="ml-2 text-[11px] text-mist-500">{relDrift(resumeItem.at)}</span>
+                </span>
+              </span>
+              <span className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moon-200/10 text-moon-100 ring-1 ring-moon-200/25 transition group-hover/resume:bg-moon-200 group-hover/resume:text-night-950">
+                <Play className="ml-0.5 h-3.5 w-3.5 fill-current" aria-hidden="true" />
+              </span>
+            </button>
+          )}
+
           <div className="mt-8 flex flex-wrap gap-2">
             {[pick.duration, "looping", "48 kHz", phase ? `${phase.label} · ${phase.illumination}% lit` : "…"].map(
               (t) => (
@@ -155,6 +230,16 @@ export default function Hero() {
               <div
                 aria-hidden="true"
                 className="absolute inset-0 bg-[linear-gradient(200deg,transparent_40%,rgba(4,6,15,0.75))]"
+              />
+              {/* audio-reactive glow — breathes with the live soundscape */}
+              <div
+                ref={pulseRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-0 opacity-0 transition-none mix-blend-screen"
+                style={{
+                  background:
+                    "radial-gradient(90% 70% at 50% 100%, rgba(236,226,200,0.20), transparent 70%)",
+                }}
               />
               {/* animated rain streaks over the artwork */}
               <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">

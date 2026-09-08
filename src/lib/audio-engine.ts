@@ -818,6 +818,8 @@ export class AudioEngine {
   private ctx: AudioContext | null = null;
   private fade!: GainNode;
   private master!: GainNode;
+  private analyser: AnalyserNode | null = null;
+  private analyserData: Uint8Array<ArrayBuffer> | null = null;
   private base: LayerState | null = null;
   private baseId: SoundscapeId | null = null;
   private mix: Partial<Record<MixLayerId, LayerState>> = {};
@@ -841,11 +843,16 @@ export class AudioEngine {
       this.fade.gain.value = 1;
       this.master = this.ctx.createGain();
       this.master.gain.value = this.masterVolume;
+      this.analyser = this.ctx.createAnalyser();
+      this.analyser.fftSize = 256;
+      this.analyser.smoothingTimeConstant = 0.82;
+      this.analyserData = new Uint8Array(new ArrayBuffer(this.analyser.frequencyBinCount));
       const comp = this.ctx.createDynamicsCompressor();
       comp.threshold.value = -20;
       comp.knee.value = 18;
       comp.ratio.value = 4;
       this.fade.connect(this.master).connect(comp).connect(this.ctx.destination);
+      this.master.connect(this.analyser);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
     return this.ctx;
@@ -941,6 +948,20 @@ export class AudioEngine {
   get isSilent() {
     return !this.base;
   }
+
+  /** RMS loudness 0..1 — for gentle audio-reactive visuals */
+  getLevel(): number {
+    if (!this.analyser || !this.analyserData || !this.ctx) return 0;
+    this.analyser.getByteFrequencyData(this.analyserData);
+    let sum = 0;
+    for (let i = 0; i < this.analyserData.length; i++) sum += this.analyserData[i];
+    return Math.min(1, sum / this.analyserData.length / 140);
+  }
 }
 
 export const audioEngine = new AudioEngine();
+
+/** QA/debug handle — lets test harnesses inspect the live audio graph */
+if (typeof window !== "undefined") {
+  (window as unknown as { __lunaEngine?: AudioEngine }).__lunaEngine = audioEngine;
+}

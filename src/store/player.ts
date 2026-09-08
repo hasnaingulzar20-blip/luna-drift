@@ -3,9 +3,24 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { audioEngine } from "@/lib/audio-engine";
-import type { MixerLayerId, MixPreset, SoundscapeId } from "@/lib/soundscapes";
+import {
+  TONIGHTS_PICK,
+  type MixerLayerId,
+  type MixPreset,
+  type SoundscapeId,
+} from "@/lib/soundscapes";
 
 export type TimerDuration = 30 | 60 | 90 | null;
+
+export interface CustomPreset {
+  id: string;
+  name: string;
+  base: SoundscapeId;
+  rain: number;
+  wind: number;
+  fire: number;
+  createdAt: number;
+}
 
 interface PlayerState {
   /* playback */
@@ -13,9 +28,14 @@ interface PlayerState {
   sessionStartedAt: number | null;
   isPlaying: boolean;
 
+  /* favorites & resume */
+  favorites: SoundscapeId[];
+  lastPlayed: { id: SoundscapeId; at: number } | null;
+
   /* mixer */
   mix: Record<MixerLayerId, number>;
   masterVolume: number;
+  customPresets: CustomPreset[];
 
   /* sleep timer */
   timerDuration: TimerDuration; // planned minutes (for display/record)
@@ -30,7 +50,10 @@ interface PlayerState {
   stopAll: (record?: boolean) => void;
   setMixLayer: (id: MixerLayerId, v: number) => void;
   setMasterVolume: (v: number) => void;
-  applyPreset: (p: MixPreset) => void;
+  applyPreset: (p: Pick<MixPreset, "base" | "rain" | "wind" | "fire">) => void;
+  toggleFavorite: (id: SoundscapeId) => void;
+  saveCustomPreset: (name: string) => CustomPreset | null;
+  deleteCustomPreset: (id: string) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   cancelTimer: () => void;
   toggleImmersive: () => void;
@@ -72,6 +95,13 @@ export const usePlayer = create<PlayerState>()(
 
       immersive: false,
 
+      favorites: [],
+      lastPlayed: null,
+
+      mix: { rain: 0, wind: 0, fire: 0 },
+      masterVolume: 0.85,
+      customPresets: [],
+
       playSoundscape: (id) => {
         void audioEngine.playBase(id);
         audioEngine.setMasterVolume(get().masterVolume);
@@ -85,6 +115,7 @@ export const usePlayer = create<PlayerState>()(
           active: id,
           isPlaying: true,
           sessionStartedAt: get().sessionStartedAt ?? Date.now(),
+          lastPlayed: { id, at: Date.now() },
         });
       },
 
@@ -135,6 +166,33 @@ export const usePlayer = create<PlayerState>()(
           get().playSoundscape(p.base);
         }
       },
+
+      toggleFavorite: (id) =>
+        set((s) => ({
+          favorites: s.favorites.includes(id)
+            ? s.favorites.filter((f) => f !== id)
+            : [...s.favorites, id],
+        })),
+
+      saveCustomPreset: (name) => {
+        const trimmed = name.trim().slice(0, 32);
+        if (!trimmed) return null;
+        const s = get();
+        const preset: CustomPreset = {
+          id: `cp-${Date.now().toString(36)}`,
+          name: trimmed,
+          base: s.active ?? TONIGHTS_PICK,
+          rain: s.mix.rain,
+          wind: s.mix.wind,
+          fire: s.mix.fire,
+          createdAt: Date.now(),
+        };
+        set({ customPresets: [...s.customPresets, preset].slice(-6) });
+        return preset;
+      },
+
+      deleteCustomPreset: (id) =>
+        set((s) => ({ customPresets: s.customPresets.filter((p) => p.id !== id) })),
 
       startTimer: (minutes) => {
         set({
@@ -206,6 +264,9 @@ export const usePlayer = create<PlayerState>()(
       partialize: (s) => ({
         mix: s.mix,
         masterVolume: s.masterVolume,
+        favorites: s.favorites,
+        lastPlayed: s.lastPlayed,
+        customPresets: s.customPresets,
       }),
     }
   )

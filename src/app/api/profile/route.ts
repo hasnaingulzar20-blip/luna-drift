@@ -34,6 +34,28 @@ export async function GET() {
       take: 8,
     });
 
+    // ── insights ──
+    const [sessionCount, allTime] = await Promise.all([
+      db.sleepSession.count({ where: { profileId: profile.id } }),
+      db.sleepSession.findMany({
+        where: { profileId: profile.id },
+        select: { soundscape: true, minutes: true },
+      }),
+    ]);
+
+    const avgMinutes = sessionCount
+      ? Math.round(allTime.reduce((sum, s) => sum + s.minutes, 0) / sessionCount)
+      : 0;
+
+    const bestDay = week.reduce<{ day: string; minutes: number } | null>(
+      (best, d) => (d.minutes > 0 && (!best || d.minutes > best.minutes) ? d : best),
+      null
+    );
+
+    const bySoundscape = new Map<string, number>();
+    allTime.forEach((s) => bySoundscape.set(s.soundscape, (bySoundscape.get(s.soundscape) ?? 0) + s.minutes));
+    const topEntry = [...bySoundscape.entries()].sort((a, b) => b[1] - a[1])[0];
+
     return NextResponse.json({
       name: profile.name,
       streak: profile.streak,
@@ -46,6 +68,13 @@ export async function GET() {
         completed: s.completed,
         endedAt: s.endedAt.toISOString(),
       })),
+      insights: {
+        sessions: sessionCount,
+        avgMinutes,
+        bestNight: bestDay,
+        topSoundscape: topEntry ? topEntry[0] : null,
+        topSoundscapeMinutes: topEntry ? topEntry[1] : 0,
+      },
     });
   } catch (err) {
     console.error("GET /api/profile failed", err);
