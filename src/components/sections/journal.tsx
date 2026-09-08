@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Flame, Clock3, MoonStar, Sparkles } from "lucide-react";
+import { Clock3, Download, Flame, MoonStar, Sparkles, TrendingUp } from "lucide-react";
 import { getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
+import { downloadNightCard } from "@/lib/night-card";
+import DreamNotes from "./dream-notes";
 
 interface SessionRow {
   id: string;
@@ -73,8 +75,27 @@ export default function Journal() {
   const totalHours = data ? Math.floor(data.totalMinutes / 60) : 0;
   const restMinutes = data ? data.totalMinutes % 60 : 0;
 
+  // sparkline geometry — the shape of the week, drawn over a quiet axis
+  const weekData = data?.week ?? [];
+  const nonZeroWeek = weekData.some((d) => d.minutes > 0);
+  const sparkW = 300;
+  const sparkH = 44;
+  const sparkPoints = (() => {
+    if (weekData.length < 2) return "";
+    const step = sparkW / (weekData.length - 1);
+    return (
+      weekData
+        .map((d, i) => {
+          const x = i * step;
+          const y = sparkH - 6 - (d.minutes / maxWeek) * (sparkH - 12);
+          return `${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ") || ""
+    );
+  })();
+
   return (
-    <section id="journal" aria-label="Your sleep journal" className="relative mt-24 sm:mt-32">
+    <section id="journal" aria-label="Your sleep journal" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -83,9 +104,36 @@ export default function Journal() {
               Every night, kept like a pressed flower
             </h2>
           </div>
-          <p className="max-w-xs text-sm leading-relaxed text-mist-400">
-            Streaks and minutes accrue quietly whenever a drift runs its course.
-          </p>
+          <div className="flex items-center gap-5">
+            <p className="max-w-xs text-sm leading-relaxed text-mist-400">
+              Streaks and minutes accrue quietly whenever a drift runs its course.
+            </p>
+            <button
+              type="button"
+              onClick={() =>
+                data &&
+                downloadNightCard({
+                  streak: data.streak,
+                  totalMinutes: data.totalMinutes,
+                  topSoundscape: data.insights?.topSoundscape
+                    ? prettyName(data.insights.topSoundscape)
+                    : null,
+                  week: data.week,
+                })
+              }
+              disabled={!data || data.totalMinutes === 0}
+              className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-moon-200/25 px-4 text-xs text-moon-200 transition hover:border-moon-200/50 hover:bg-moon-200/10 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Download a shareable night card image"
+              title={
+                data && data.totalMinutes > 0
+                  ? "Save a shareable night card"
+                  : "Complete a drift first — then the card writes itself"
+              }
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">night card</span>
+            </button>
+          </div>
         </div>
 
         <div className="mt-9 grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
@@ -179,7 +227,7 @@ export default function Journal() {
                         {d.minutes > 0 ? d.minutes : ""}
                       </span>
                       <div
-                        className={`w-full max-w-9 rounded-lg transition-all duration-700 ${
+                        className={`w-full max-w-9 rounded-lg transition-all duration-700 hover:brightness-125 ${
                           isToday
                             ? "bg-gradient-to-t from-moon-500/50 to-moon-200 shadow-[0_0_18px_rgba(205,180,124,0.3)]"
                             : d.minutes > 0
@@ -189,6 +237,7 @@ export default function Journal() {
                         style={{ height: `${h}%` }}
                         role="img"
                         aria-label={`${d.day}: ${d.minutes} minutes`}
+                        title={`${d.day} — ${d.minutes} min`}
                       />
                       <span className={`text-[10px] ${isToday ? "text-moon-300" : "text-mist-500"}`}>
                         {d.day}
@@ -202,6 +251,57 @@ export default function Journal() {
               A drift counts once it has carried you at least a minute. Timers that run to their
               fade are marked <span className="text-moon-300">full</span>.
             </p>
+
+            {/* the shape of the week — a quiet trend line */}
+            {nonZeroWeek && sparkPoints && (
+              <div className="mt-4 rounded-2xl bg-white/[0.02] px-5 py-4 ring-1 ring-white/6">
+                <p className="flex items-center gap-2 text-[10px] uppercase tracking-[0.24em] text-mist-500">
+                  <TrendingUp className="h-3 w-3 text-moon-300/80" aria-hidden="true" />
+                  the shape of your week
+                </p>
+                <svg
+                  viewBox={`0 0 ${sparkW} ${sparkH}`}
+                  className="mt-2 h-11 w-full"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label={`Trend of nightly rest across the week, best day ${data?.insights?.bestNight?.day ?? "—"}`}
+                >
+                  <defs>
+                    <linearGradient id="sparkFill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="rgba(236,226,200,0.28)" />
+                      <stop offset="100%" stopColor="rgba(236,226,200,0)" />
+                    </linearGradient>
+                    <linearGradient id="sparkLine" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#9fadd8" />
+                      <stop offset="100%" stopColor="#ece2c8" />
+                    </linearGradient>
+                  </defs>
+                  <polygon
+                    points={`0,${sparkH} ${sparkPoints} ${sparkW},${sparkH}`}
+                    fill="url(#sparkFill)"
+                  />
+                  <polyline
+                    points={sparkPoints}
+                    fill="none"
+                    stroke="url(#sparkLine)"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {weekData.map((d, i) => {
+                    if (d.minutes === 0) return null;
+                    const step = sparkW / (weekData.length - 1);
+                    const x = i * step;
+                    const y = sparkH - 6 - (d.minutes / maxWeek) * (sparkH - 12);
+                    return (
+                      <circle key={i} cx={x} cy={y} r="2.4" fill="#ece2c8">
+                        <title>{`${d.day}: ${d.minutes} min`}</title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+              </div>
+            )}
 
             {/* insights strip */}
             {data?.insights && data.insights.sessions > 0 && (
@@ -257,6 +357,9 @@ export default function Journal() {
             )}
           </div>
         </div>
+
+        {/* ── dream notebook ── */}
+        <DreamNotes />
       </div>
     </section>
   );

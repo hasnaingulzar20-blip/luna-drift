@@ -27,7 +27,7 @@ export default function Library() {
   );
 
   return (
-    <section id="library" aria-label="Soundscape library" className="relative mt-24 sm:mt-32">
+    <section id="library" aria-label="Soundscape library" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -143,6 +143,12 @@ export default function Library() {
                     <span className="glass-chip absolute right-3.5 top-3.5 rounded-full px-2.5 py-1 text-[10px] tracking-widest text-mist-200">
                       {s.duration.toUpperCase()}
                     </span>
+
+                    {/* sheen sweep — moonlight crossing the glass on hover */}
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 -translate-x-[135%] bg-[linear-gradient(105deg,transparent_40%,rgba(236,226,200,0.09)_48%,rgba(236,226,200,0.16)_50%,rgba(236,226,200,0.09)_52%,transparent_60%)] transition-transform duration-[1500ms] ease-out group-hover:translate-x-[135%]"
+                    />
 
                     {/* favorite star */}
                     <button

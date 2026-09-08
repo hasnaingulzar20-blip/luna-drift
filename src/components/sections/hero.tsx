@@ -103,7 +103,7 @@ export default function Hero() {
   }, [isPlaying]);
 
   return (
-    <section id="tonight" aria-label="Tonight's pick" className="relative pt-32 sm:pt-36">
+    <section id="tonight" aria-label="Tonight's pick" className="relative scroll-mt-24 pt-32 sm:pt-36">
       <div className="mx-auto grid max-w-6xl items-center gap-10 px-5 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
         {/* ── copy side ── */}
         <div>

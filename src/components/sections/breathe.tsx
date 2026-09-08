@@ -23,6 +23,19 @@ export default function Breathe() {
 
   const phase = PHASES[phaseIdx];
 
+  // gentle haptic pulse at each phase change (where the platform allows it)
+  useEffect(() => {
+    if (!running) return;
+    if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
+    try {
+      if (phase.name === "inhale") navigator.vibrate(35);
+      else if (phase.name === "hold") navigator.vibrate(22);
+      else navigator.vibrate([18, 60, 30]);
+    } catch {
+      /* vibration is a bonus, never a requirement */
+    }
+  }, [running, phase.name, phaseIdx]);
+
   // phase clock — driven by timestamps so background tabs stay honest
   useEffect(() => {
     if (!running) return;
@@ -77,7 +90,7 @@ export default function Breathe() {
     : 1;
 
   return (
-    <section id="breathe" aria-label="Breathing guide" className="relative mt-24 sm:mt-32">
+    <section id="breathe" aria-label="Breathing guide" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6 sm:p-10">
           <div

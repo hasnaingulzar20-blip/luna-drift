@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { audioEngine } from "@/lib/audio-engine";
 import {
+  SOUNDSCAPES,
   TONIGHTS_PICK,
   type MixerLayerId,
   type MixPreset,
@@ -22,6 +23,25 @@ export interface CustomPreset {
   createdAt: number;
 }
 
+export interface WakeAlarm {
+  enabled: boolean;
+  time: string; // "HH:MM" 24h
+  lastFiredDay: string | null; // guards against double-firing on one day
+}
+
+const MAX_PRESETS = 12;
+
+const SOUNDSCAPE_IDS = SOUNDSCAPES.map((s) => s.id) as SoundscapeId[];
+
+function dayKeyOf(d: Date) {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+export interface ImportResult {
+  added: number;
+  skipped: number;
+}
+
 interface PlayerState {
   /* playback */
   active: SoundscapeId | null;
@@ -36,6 +56,14 @@ interface PlayerState {
   mix: Record<MixerLayerId, number>;
   masterVolume: number;
   customPresets: CustomPreset[];
+  trims: Partial<Record<SoundscapeId, number>>; // per-soundscape room level
+
+  /* wake light */
+  wakeAlarm: WakeAlarm;
+  waking: boolean; // sunrise overlay is glowing right now
+
+  /* the last bell */
+  chimeOnEnd: boolean;
 
   /* sleep timer */
   timerDuration: TimerDuration; // planned minutes (for display/record)
@@ -54,6 +82,14 @@ interface PlayerState {
   toggleFavorite: (id: SoundscapeId) => void;
   saveCustomPreset: (name: string) => CustomPreset | null;
   deleteCustomPreset: (id: string) => void;
+  exportPresets: () => string;
+  importPresets: (json: string) => ImportResult;
+  setTrim: (id: SoundscapeId, v: number) => void;
+  setWakeTime: (time: string) => void;
+  setWakeEnabled: (enabled: boolean) => void;
+  dismissWake: () => void;
+  checkWake: () => void;
+  setChimeOnEnd: (v: boolean) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   cancelTimer: () => void;
   toggleImmersive: () => void;
@@ -87,6 +123,12 @@ export const usePlayer = create<PlayerState>()(
 
       mix: { rain: 0, wind: 0, fire: 0 },
       masterVolume: 0.85,
+      trims: {},
+
+      wakeAlarm: { enabled: false, time: "06:45", lastFiredDay: null },
+      waking: false,
+
+      chimeOnEnd: true,
 
       timerDuration: null,
       timerEndsAt: null,
@@ -103,6 +145,7 @@ export const usePlayer = create<PlayerState>()(
       customPresets: [],
 
       playSoundscape: (id) => {
+        audioEngine.setBaseTrim(id, get().trims[id] ?? 1);
         void audioEngine.playBase(id);
         audioEngine.setMasterVolume(get().masterVolume);
         audioEngine.resetFade();
@@ -187,12 +230,138 @@ export const usePlayer = create<PlayerState>()(
           fire: s.mix.fire,
           createdAt: Date.now(),
         };
-        set({ customPresets: [...s.customPresets, preset].slice(-6) });
+        set({ customPresets: [...s.customPresets, preset].slice(-MAX_PRESETS) });
         return preset;
       },
 
       deleteCustomPreset: (id) =>
         set((s) => ({ customPresets: s.customPresets.filter((p) => p.id !== id) })),
+
+      exportPresets: () => {
+        const s = get();
+        return JSON.stringify(
+          {
+            app: "luna-drift",
+            kind: "mix-presets",
+            version: 1,
+            presets: s.customPresets.map((p) => ({
+              name: p.name,
+              base: p.base,
+              rain: p.rain,
+              wind: p.wind,
+              fire: p.fire,
+            })),
+          },
+          null,
+          2
+        );
+      },
+
+      importPresets: (json) => {
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(json);
+        } catch {
+          return { added: 0, skipped: 0 };
+        }
+        const list =
+          Array.isArray(parsed)
+            ? parsed
+            : parsed && typeof parsed === "object" && Array.isArray((parsed as { presets?: unknown }).presets)
+              ? (parsed as { presets: unknown[] }).presets
+              : [];
+        const s = get();
+        const seen = new Set(s.customPresets.map((p) => p.name.toLowerCase()));
+        const toAdd: CustomPreset[] = [];
+        let skipped = 0;
+        for (const raw of list) {
+          if (!raw || typeof raw !== "object") { skipped++; continue; }
+          const r = raw as Record<string, unknown>;
+          const name = typeof r.name === "string" ? r.name.trim().slice(0, 32) : "";
+          const base = r.base as SoundscapeId;
+          const num = (v: unknown) => (typeof v === "number" && v >= 0 && v <= 1 ? v : null);
+          const rain = num(r.rain);
+          const wind = num(r.wind);
+          const fire = num(r.fire);
+          if (!name || !SOUNDSCAPE_IDS.includes(base) || rain === null || wind === null || fire === null) {
+            skipped++;
+            continue;
+          }
+          if (seen.has(name.toLowerCase())) { skipped++; continue; }
+          seen.add(name.toLowerCase());
+          toAdd.push({
+            id: `cp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+            name,
+            base,
+            rain,
+            wind,
+            fire,
+            createdAt: Date.now(),
+          });
+          if (s.customPresets.length + toAdd.length >= MAX_PRESETS) break;
+        }
+        if (toAdd.length > 0) {
+          set({ customPresets: [...s.customPresets, ...toAdd].slice(-MAX_PRESETS) });
+        }
+        return { added: toAdd.length, skipped };
+      },
+
+      setTrim: (id, v) => {
+        set((s) => ({ trims: { ...s.trims, [id]: v } }));
+        audioEngine.setBaseTrim(id, v);
+      },
+
+      setWakeTime: (time) =>
+        set((s) => ({ wakeAlarm: { ...s.wakeAlarm, time, lastFiredDay: null } })),
+
+      setWakeEnabled: (enabled) => {
+        const s = get();
+        if (enabled) {
+          // enabling after the alarm has already passed today arms it for tomorrow
+          const now = new Date();
+          const [h, m] = s.wakeAlarm.time.split(":").map(Number);
+          const nowMin = now.getHours() * 60 + now.getMinutes();
+          const passed = nowMin >= (h || 0) * 60 + (m || 0);
+          set({
+            wakeAlarm: {
+              ...s.wakeAlarm,
+              enabled,
+              lastFiredDay: passed ? dayKeyOf(now) : null,
+            },
+          });
+        } else {
+          set({ wakeAlarm: { ...s.wakeAlarm, enabled, lastFiredDay: null } });
+        }
+      },
+
+      dismissWake: () => set({ waking: false }),
+
+      checkWake: () => {
+        const s = get();
+        if (s.waking || !s.wakeAlarm.enabled) return;
+        const now = new Date();
+        const today = dayKeyOf(now);
+        if (s.wakeAlarm.lastFiredDay === today) return;
+        const [h, m] = s.wakeAlarm.time.split(":").map(Number);
+        const target = (h || 0) * 60 + (m || 0);
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        // fire inside a 10-minute window past the target so an evening enable never blasts
+        if (nowMin >= target && nowMin - target < 10) {
+          set({ wakeAlarm: { ...s.wakeAlarm, lastFiredDay: today }, waking: true });
+          audioEngine.playChime("sunrise");
+          // if a soundscape drifted through the night, ease it into the morning
+          if (s.isPlaying) s.stopAll();
+          if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+            try {
+              navigator.vibrate([180, 260, 180]);
+            } catch {
+              /* vibration is a bonus, never a requirement */
+            }
+          }
+        }
+      },
+
+      setChimeOnEnd: (v) => set({ chimeOnEnd: v }),
 
       startTimer: (minutes) => {
         set({
@@ -223,6 +392,7 @@ export const usePlayer = create<PlayerState>()(
 
         if (remaining <= 0) {
           // natural end — the long fade has already happened over the last 60s
+          if (s.chimeOnEnd) audioEngine.playChime("complete");
           audioEngine.stopAll(1.2);
           const minutes = s.sessionStartedAt
             ? Math.max(
@@ -267,6 +437,9 @@ export const usePlayer = create<PlayerState>()(
         favorites: s.favorites,
         lastPlayed: s.lastPlayed,
         customPresets: s.customPresets,
+        trims: s.trims,
+        wakeAlarm: s.wakeAlarm,
+        chimeOnEnd: s.chimeOnEnd,
       }),
     }
   )

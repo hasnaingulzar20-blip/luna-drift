@@ -1,6 +1,8 @@
 "use client";
 
-import { Moon, Timer as TimerIcon, X } from "lucide-react";
+import { AlarmClock, BellRing, Moon, Sunrise, Timer as TimerIcon, X } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import Ornament from "@/components/atmosphere/ornament";
 import { usePlayer } from "@/store/player";
 
 function formatRemaining(sec: number) {
@@ -16,6 +18,11 @@ export default function SleepTimer() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const startTimer = usePlayer((s) => s.startTimer);
   const cancelTimer = usePlayer((s) => s.cancelTimer);
+  const wakeAlarm = usePlayer((s) => s.wakeAlarm);
+  const setWakeTime = usePlayer((s) => s.setWakeTime);
+  const setWakeEnabled = usePlayer((s) => s.setWakeEnabled);
+  const chimeOnEnd = usePlayer((s) => s.chimeOnEnd);
+  const setChimeOnEnd = usePlayer((s) => s.setChimeOnEnd);
 
   const progress = timerDuration
     ? 1 - remainingSeconds / (timerDuration * 60)
@@ -24,7 +31,7 @@ export default function SleepTimer() {
   const fading = timerDuration !== null && remainingSeconds <= 60 && remainingSeconds > 0;
 
   return (
-    <section id="timer" aria-label="Sleep timer" className="relative mt-24 sm:mt-32">
+    <section id="timer" aria-label="Sleep timer" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6 sm:p-10">
           <div
@@ -131,6 +138,77 @@ export default function SleepTimer() {
                   the long fade has begun…
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* ── endings: wake light + last bell ── */}
+          <Ornament className="mt-10" />
+          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+            {/* wake light */}
+            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+              <div
+                aria-hidden="true"
+                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(240,185,138,0.16),transparent_70%)]"
+              />
+              <div className="relative flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+                    <Sunrise className="h-3.5 w-3.5 text-ember-300" aria-hidden="true" />
+                    wake light
+                  </p>
+                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-mist-400">
+                    At the hour you choose, the screen slowly warms like dawn through curtains —
+                    and a faraway bell rings the room awake.
+                  </p>
+                  <p className="mt-2 font-mono text-[11px] text-moon-300/90" aria-live="polite">
+                    {wakeAlarm.enabled ? `armed for ${wakeAlarm.time}` : "off — sleep without a schedule"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <div className="glass-chip flex items-center gap-2 rounded-full px-3 py-1.5">
+                    <AlarmClock className="h-3.5 w-3.5 text-moon-200" aria-hidden="true" />
+                    <input
+                      type="time"
+                      value={wakeAlarm.time}
+                      onChange={(e) => setWakeTime(e.target.value)}
+                      aria-label="Wake light time"
+                      className="bg-transparent font-mono text-sm text-moon-100 outline-none [color-scheme:dark]"
+                    />
+                  </div>
+                  <Switch
+                    checked={wakeAlarm.enabled}
+                    onCheckedChange={setWakeEnabled}
+                    aria-label="Enable wake light"
+                    className="data-[state=checked]:bg-ember-400/80"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* the last bell */}
+            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+              <div
+                aria-hidden="true"
+                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(205,180,124,0.14),transparent_70%)]"
+                style={{ animationDelay: "1.2s" }}
+              />
+              <div className="relative flex flex-wrap items-center justify-between gap-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+                    <BellRing className="h-3.5 w-3.5 text-moon-300" aria-hidden="true" />
+                    the last bell
+                  </p>
+                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-mist-400">
+                    When a timer runs its course, one very soft bell marks the end — then
+                    nothing at all. Off means silence takes you the rest of the way.
+                  </p>
+                </div>
+                <Switch
+                  checked={chimeOnEnd}
+                  onCheckedChange={setChimeOnEnd}
+                  aria-label="Ring a soft bell when the timer completes"
+                />
+              </div>
             </div>
           </div>
         </div>

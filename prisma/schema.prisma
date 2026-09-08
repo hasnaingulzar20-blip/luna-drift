@@ -16,6 +16,7 @@ model Profile {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   sessions       SleepSession[]
+  dreams         DreamNote[]
 }
 
 model SleepSession {
@@ -26,4 +27,13 @@ model SleepSession {
   minutes    Int
   completed  Boolean   @default(false)
   endedAt    DateTime  @default(now())
+}
+
+model DreamNote {
+  id        String   @id @default(cuid())
+  profileId String
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  body      String
+  mood      String   @default("calm")
+  createdAt DateTime @default(now())
 }

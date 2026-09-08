@@ -1,7 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { CloudRain, Flame, Info, Plus, Star, Trash2, Volume2, Wind, Shuffle } from "lucide-react";
+import { useRef, useState } from "react";
+import {
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  CloudRain,
+  Flame,
+  Info,
+  Plus,
+  SlidersHorizontal,
+  Star,
+  Trash2,
+  Volume2,
+  Wind,
+  Shuffle,
+} from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { usePlayer } from "@/store/player";
 import { MIXER_LAYERS, MIX_PRESETS, TONIGHTS_PICK, getSoundscape, type MixerLayerId } from "@/lib/soundscapes";
@@ -29,8 +42,18 @@ export default function Mixer() {
   const customPresets = usePlayer((s) => s.customPresets);
   const saveCustomPreset = usePlayer((s) => s.saveCustomPreset);
   const deleteCustomPreset = usePlayer((s) => s.deleteCustomPreset);
+  const exportPresets = usePlayer((s) => s.exportPresets);
+  const importPresets = usePlayer((s) => s.importPresets);
+  const trims = usePlayer((s) => s.trims);
+  const setTrim = usePlayer((s) => s.setTrim);
+  const active = usePlayer((s) => s.active);
   const [presetName, setPresetName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importJson, setImportJson] = useState("");
+  const [importNote, setImportNote] = useState<string | null>(null);
+  const [exportNote, setExportNote] = useState<string | null>(null);
+  const importAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const onLayerChange = (id: MixerLayerId, v: number) => {
     // dragging a layer while silent gently wakes tonight's drift
@@ -39,7 +62,7 @@ export default function Mixer() {
   };
 
   return (
-    <section id="mixer" aria-label="Soundscape mixer" className="relative mt-24 sm:mt-32">
+    <section id="mixer" aria-label="Soundscape mixer" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6 sm:p-10">
           {/* faint aurora inside the panel */}
@@ -170,6 +193,103 @@ export default function Mixer() {
                     Keep the current mix as a preset
                   </button>
                 )}
+
+                {/* ── import / export the shelf ── */}
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (customPresets.length === 0) {
+                        setExportNote("the shelf is empty — keep a mix first");
+                        setTimeout(() => setExportNote(null), 2600);
+                        return;
+                      }
+                      const json = exportPresets();
+                      try {
+                        await navigator.clipboard.writeText(json);
+                        setExportNote("copied to clipboard");
+                      } catch {
+                        setExportNote("downloaded as file");
+                        const blob = new Blob([json], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "luna-mix-presets.json";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
+                      setTimeout(() => setExportNote(null), 2600);
+                    }}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+                  >
+                    <ArrowUpFromLine className="h-3 w-3" aria-hidden="true" />
+                    Share mixes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportOpen((v) => !v);
+                      setImportNote(null);
+                      setTimeout(() => importAreaRef.current?.focus(), 50);
+                    }}
+                    aria-expanded={importOpen}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/[0.03] px-3 py-2 text-[11px] text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+                  >
+                    <ArrowDownToLine className="h-3 w-3" aria-hidden="true" />
+                    Import mixes
+                  </button>
+                </div>
+                {exportNote && (
+                  <p className="text-[11px] text-moon-300" aria-live="polite">
+                    {exportNote}
+                  </p>
+                )}
+                {importOpen && (
+                  <div className="rounded-xl border border-moon-200/20 bg-white/[0.03] p-3">
+                    <label htmlFor="preset-import" className="sr-only">
+                      Paste shared mix presets as JSON
+                    </label>
+                    <textarea
+                      id="preset-import"
+                      ref={importAreaRef}
+                      value={importJson}
+                      onChange={(e) => {
+                        setImportJson(e.target.value);
+                        setImportNote(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") setImportOpen(false);
+                      }}
+                      rows={4}
+                      placeholder='[{"name":"Quiet Rain","base":"rain","rain":0.8,"wind":0.1,"fire":0}]'
+                      className="w-full resize-none rounded-lg border border-white/10 bg-night-950/40 px-3 py-2 font-mono text-[11px] leading-relaxed text-moon-100 outline-none transition placeholder:text-mist-600 focus:border-moon-200/40"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="text-[11px] text-moon-300" aria-live="polite">
+                        {importNote}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={!importJson.trim()}
+                        onClick={() => {
+                          const { added, skipped } = importPresets(importJson);
+                          setImportNote(
+                            added === 0 && skipped === 0
+                              ? "nothing readable in there"
+                              : `${added} added · ${skipped} skipped`
+                          );
+                          if (added > 0) {
+                            setImportJson("");
+                            setImportOpen(false);
+                          }
+                        }}
+                        className="rounded-full bg-moon-200 px-3.5 py-1 text-[11px] font-medium text-night-950 transition disabled:opacity-30"
+                      >
+                        Add to shelf
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -236,6 +356,45 @@ export default function Mixer() {
                   className="[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-white/8"
                 />
               </div>
+
+              {/* per-soundscape room level — every room has its own voice */}
+              {active && (
+                <div>
+                  <div className="mb-2.5 flex items-center justify-between">
+                    <label
+                      htmlFor="base-trim"
+                      className="flex items-center gap-2.5 text-sm text-moon-100"
+                    >
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/10">
+                        <SlidersHorizontal
+                          className="h-3.5 w-3.5 text-mist-300"
+                          aria-hidden="true"
+                        />
+                      </span>
+                      Room level
+                      <span className="hidden text-xs text-mist-500 sm:inline">
+                        · {getSoundscape(active).name}
+                      </span>
+                    </label>
+                    <span className="font-mono text-xs text-mist-300">
+                      {Math.round((trims[active] ?? 1) * 100)}%
+                    </span>
+                  </div>
+                  <Slider
+                    id="base-trim"
+                    value={[Math.round((trims[active] ?? 1) * 100)]}
+                    min={40}
+                    max={120}
+                    step={5}
+                    aria-label={`Room level for ${getSoundscape(active).name}`}
+                    onValueChange={(vals) => setTrim(active, (vals[0] ?? 100) / 100)}
+                    className="[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-white/8"
+                  />
+                  <p className="mt-1.5 text-[11px] text-mist-600">
+                    some rooms carry further than others — set each one once, it is remembered
+                  </p>
+                </div>
+              )}
 
               {!isPlaying && (
                 <p className="flex items-center gap-2 rounded-xl bg-moon-200/[0.05] px-4 py-3 text-xs text-mist-400">

@@ -121,7 +121,7 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
 
 export default function Stories() {
   return (
-    <section id="stories" aria-label="Sleep stories" className="relative mt-24 sm:mt-32">
+    <section id="stories" aria-label="Sleep stories" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>

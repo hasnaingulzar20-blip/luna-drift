@@ -6,6 +6,7 @@ import MoonArc from "@/components/atmosphere/moon-arc";
 import CursorTrail from "@/components/atmosphere/cursor-trail";
 import TimerTicker from "@/components/atmosphere/timer-ticker";
 import MediaSessionBridge from "@/components/atmosphere/media-session";
+import WakeLight from "@/components/atmosphere/wake-light";
 import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
 import SiteHeader from "@/components/sections/site-header";
@@ -116,6 +117,9 @@ export default function Home() {
       </div>
 
       {immersive && <ImmersiveHint />}
+
+      {/* the dawn, when it comes */}
+      <WakeLight />
 
       {/* screen-reader summary of ambient state */}
       <p className="sr-only" aria-live="polite">

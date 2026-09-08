@@ -824,6 +824,8 @@ export class AudioEngine {
   private baseId: SoundscapeId | null = null;
   private mix: Partial<Record<MixLayerId, LayerState>> = {};
   private masterVolume = 0.9;
+  private baseTrim = 1; // trim for the currently-loading base
+  private baseTrims: Partial<Record<SoundscapeId, number>> = {}; // per-soundscape room level 0.4..1.2
 
   get context(): AudioContext | null {
     return this.ctx;
@@ -874,11 +876,25 @@ export class AudioEngine {
     }
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-    gain.gain.setTargetAtTime(1, ctx.currentTime, fadeInSeconds / 3);
+    this.baseTrim = this.baseTrims[id] ?? 1;
+    gain.gain.setTargetAtTime(this.baseTrim, ctx.currentTime, fadeInSeconds / 3);
     gain.connect(this.fade);
     const dispose = BASE_BUILDERS[id](ctx, gain);
     this.base = { gain, dispose };
     this.baseId = id;
+  }
+
+  /** per-soundscape room level (0.4..1.2) — live-ramps only the matching active base */
+  setBaseTrim(id: SoundscapeId, v: number) {
+    const clamped = Math.max(0.4, Math.min(1.2, v));
+    this.baseTrims[id] = clamped;
+    if (this.ctx && this.base && this.baseId === id) {
+      this.base.gain.gain.setTargetAtTime(clamped, this.ctx.currentTime, 0.25);
+    }
+  }
+
+  getTrim(id: SoundscapeId): number {
+    return this.baseTrims[id] ?? 1;
   }
 
   /** set a mixer layer level 0..1; builds/disposes lazily */
@@ -947,6 +963,59 @@ export class AudioEngine {
 
   get isSilent() {
     return !this.base;
+  }
+
+  /**
+   * A soft bell, routed around the timer fade (straight to master).
+   * kind "complete" — single low bell when a sleep timer runs its course.
+   * kind "sunrise"  — gentle rising motif for the wake light, repeats 3×.
+   */
+  playChime(kind: "complete" | "sunrise" = "complete") {
+    const ctx = this.ensureContext();
+    if (ctx.state === "suspended") void ctx.resume();
+    const bus = ctx.createGain();
+    bus.gain.value = 0.5;
+    bus.connect(this.master);
+
+    const bell = (freq: number, at: number, level: number, decay = 4.5) => {
+      const partials = [
+        { f: freq, g: 1 },
+        { f: freq * 2.01, g: 0.34 },
+        { f: freq * 2.99, g: 0.11 },
+      ];
+      partials.forEach(({ f, g }) => {
+        const osc = ctx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = f;
+        const g1 = ctx.createGain();
+        g1.gain.setValueAtTime(0.0001, at);
+        g1.gain.exponentialRampToValueAtTime(level * g, at + 0.06);
+        g1.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+        osc.connect(g1).connect(bus);
+        osc.start(at);
+        osc.stop(at + decay + 0.2);
+      });
+    };
+
+    const t0 = ctx.currentTime + 0.08;
+    if (kind === "complete") {
+      // A4 then E5 — "it is safe to sleep now"
+      bell(432, t0, 0.2, 5);
+      bell(648, t0 + 0.9, 0.13, 5.5);
+    } else {
+      // C5 · E5 · G5 rising, thrice, softer each time
+      const motif = [523.25, 659.25, 783.99];
+      for (let rep = 0; rep < 3; rep++) {
+        const start = t0 + rep * 5.2;
+        motif.forEach((f, i) => bell(f, start + i * 0.85, 0.16 * (1 - rep * 0.26), 4));
+      }
+    }
+    // release the bus long after the last partial dies
+    setTimeout(() => {
+      try {
+        bus.disconnect();
+      } catch { /* noop */ }
+    }, (kind === "complete" ? 8 : 22) * 1000);
   }
 
   /** RMS loudness 0..1 — for gentle audio-reactive visuals */

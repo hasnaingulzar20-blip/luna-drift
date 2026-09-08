@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Square } from "lucide-react";
+import { Moon, Square, Sunrise } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { getSoundscape } from "@/lib/soundscapes";
 
@@ -39,6 +39,7 @@ export default function SiteHeader() {
   const timerDuration = usePlayer((s) => s.timerDuration);
   const remainingSeconds = usePlayer((s) => s.remainingSeconds);
   const stopAll = usePlayer((s) => s.stopAll);
+  const wakeAlarm = usePlayer((s) => s.wakeAlarm);
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -116,6 +117,17 @@ export default function SiteHeader() {
           >
             Set a timer
           </a>
+          {wakeAlarm.enabled && (
+            <a
+              href="#timer"
+              aria-label={`Wake light armed for ${wakeAlarm.time}`}
+              title={`Wake light armed for ${wakeAlarm.time}`}
+              className="flex items-center gap-1.5 rounded-full border border-ember-300/35 bg-ember-400/10 px-3 py-1.5 text-xs text-ember-300 transition hover:border-ember-300/60 hover:bg-ember-400/20"
+            >
+              <Sunrise className="h-3 w-3" aria-hidden="true" />
+              <span className="font-mono">{wakeAlarm.time}</span>
+            </a>
+          )}
         </div>
       </div>
     </header>

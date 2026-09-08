@@ -111,6 +111,9 @@
   html {
     scroll-behavior: smooth;
   }
+  h2 {
+    text-wrap: balance;
+  }
   body {
     @apply text-foreground;
     background:
@@ -177,6 +180,31 @@
     background: linear-gradient(90deg, transparent, rgba(159, 173, 216, 0.25), transparent);
     height: 1px;
   }
+}
+
+/* ── moonlit slider thumbs ─────────────────────────────── */
+[data-slot="slider-thumb"] {
+  border-color: rgba(236, 226, 200, 0.85) !important;
+  background: #0c142a !important;
+  box-shadow:
+    0 0 0 3px rgba(236, 226, 200, 0.12),
+    0 0 14px rgba(236, 226, 200, 0.28) !important;
+  transition: box-shadow 0.3s ease, transform 0.2s ease;
+}
+[data-slot="slider-thumb"]:hover {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 4px rgba(236, 226, 200, 0.18),
+    0 0 20px rgba(236, 226, 200, 0.4) !important;
+}
+[data-slot="slider-range"] {
+  background: linear-gradient(90deg, rgba(159, 173, 216, 0.5), rgba(236, 226, 200, 0.75)) !important;
+}
+
+/* ── time inputs read as night, not system white ───────── */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.85) sepia(0.3) saturate(0.6) hue-rotate(-15deg);
+  cursor: pointer;
 }
 
 /* ── immersive mode: hide UI, keep the sky ─────────────── */
