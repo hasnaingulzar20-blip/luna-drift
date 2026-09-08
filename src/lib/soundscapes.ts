@@ -14,6 +14,8 @@ export interface Soundscape {
   description: string;
   duration: string;
   bpmHint: string;
+  /** small "sounds like" chips shown on the library card */
+  notes: string[];
   /** tailwind-ready art classes for the card canvas fallback */
   hue: string;
   glow: string;
@@ -29,6 +31,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "A slow, patient rain against the window — droplets gathering, sliding, and releasing. The softest thunder rolls somewhere beyond the hills.",
     duration: "45 min",
     bpmHint: "looping",
+    notes: ["droplets", "far thunder", "glass hush"],
     hue: "#8fa1c4",
     glow: "rgba(143,161,196,0.35)",
     image: "/images/sc-rain.png",
@@ -41,6 +44,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "A pine hollow after dark. Wind combs through the canopy, crickets thread the silence, and an owl calls once — far away, unhurried.",
     duration: "60 min",
     bpmHint: "looping",
+    notes: ["needles", "crickets", "one owl"],
     hue: "#7fae9a",
     glow: "rgba(127,174,154,0.32)",
     image: "/images/sc-forest.png",
@@ -53,6 +57,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "The sea breathing against a dark shore. Each swell gathers, curls, and dissolves into foam — nine and a half seconds between heartbeats of water.",
     duration: "60 min",
     bpmHint: "looping",
+    notes: ["swell", "foam hiss", "far gulls"],
     hue: "#6f9ec4",
     glow: "rgba(111,158,196,0.35)",
     image: "/images/sc-ocean.png",
@@ -65,6 +70,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "The last café on the corner, ten minutes before closing. Muffled voices, a cup set down softly, the espresso machine cooling into silence.",
     duration: "45 min",
     bpmHint: "looping",
+    notes: ["murmur", "porcelain", "espresso rest"],
     hue: "#cdb47c",
     glow: "rgba(205,180,124,0.3)",
     image: "/images/sc-cafe.png",
@@ -77,6 +83,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "A fire settled into embers. Wood shifts, sparks rise and vanish, and a low warm hum fills the room the way lamplight used to.",
     duration: "90 min",
     bpmHint: "looping",
+    notes: ["crackle", "pops", "warm hum"],
     hue: "#e09659",
     glow: "rgba(224,150,89,0.32)",
     image: "/images/sc-fireplace.png",
@@ -89,6 +96,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "A piano in the next room playing chords so slowly they melt into one another. Felt hammers, soft pedal, notes chosen almost at random.",
     duration: "45 min",
     bpmHint: "looping",
+    notes: ["felt hammers", "pedal haze"],
     hue: "#b7a3d6",
     glow: "rgba(183,163,214,0.28)",
     image: "/images/sc-piano.png",
@@ -101,6 +109,7 @@ export const SOUNDSCAPES: Soundscape[] = [
       "The late service through sleeping country. A steady rumble underfoot, track joints ticking past like a metronome, and — very occasionally — a horn somewhere across the valley.",
     duration: "75 min",
     bpmHint: "looping",
+    notes: ["track joints", "sway", "one horn"],
     hue: "#a092c4",
     glow: "rgba(160,146,196,0.3)",
     image: "/images/sc-train.png",

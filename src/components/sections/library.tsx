@@ -31,7 +31,10 @@ export default function Library() {
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">The Library</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
+              <span className="text-moon-300/40" aria-hidden="true">II</span>
+              <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>The Library
+            </p>
             <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
               Seven rooms of quiet
             </h2>
@@ -194,6 +197,18 @@ export default function Library() {
                     <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-mist-300/90">
                       {s.description}
                     </p>
+
+                    {/* "sounds like" chips */}
+                    <div className="mt-3 flex flex-wrap gap-1.5" aria-label={`${s.name} sounds like`}>
+                      {s.notes.map((n) => (
+                        <span
+                          key={n}
+                          className="rounded-full border border-white/8 bg-white/[0.03] px-2 py-0.5 text-[10px] tracking-wide text-mist-400 transition-colors duration-500 group-hover:border-moon-200/20 group-hover:text-mist-300"
+                        >
+                          {n}
+                        </span>
+                      ))}
+                    </div>
 
                     <div className="mt-4 flex items-center justify-between">
                       <span

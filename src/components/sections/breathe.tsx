@@ -101,6 +101,8 @@ export default function Breathe() {
             <div>
               <p className="flex items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
                 <Wind className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="text-moon-300/40" aria-hidden="true">V</span>
+                <span className="text-white/20" aria-hidden="true">·</span>
                 Breathing Guide
               </p>
               <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">

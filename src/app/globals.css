@@ -269,3 +269,27 @@ input[type="time"]::-webkit-calendar-picker-indicator {
 .anim-breathe { animation: breathe 7s ease-in-out infinite; }
 .anim-float { animation: float-y 9s ease-in-out infinite; }
 .anim-spin-slower { animation: spin-slower 90s linear infinite; }
+
+/* ── quiet keys & moonlit focus ────────────────────────── */
+/* selection tinted like moonlight on paper */
+::selection {
+  background: rgba(236, 226, 200, 0.24);
+  color: #f7f3e8;
+}
+::selection:window-inactive {
+  background: rgba(236, 226, 200, 0.15);
+}
+
+/* a soft moon-colored outline for keyboard wanderers */
+:where(a, button, [role="button"], [role="tab"], input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 1.5px solid rgba(236, 226, 200, 0.4);
+  outline-offset: 3px;
+}
+
+/* dark scheme for the little number steppers */
+input[type="number"] {
+  color-scheme: dark;
+}
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.35;
+}

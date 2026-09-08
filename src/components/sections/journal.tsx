@@ -99,7 +99,10 @@ export default function Journal() {
       <div className="mx-auto max-w-6xl px-5">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">Sleep Journal</p>
+            <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
+              <span className="text-moon-300/40" aria-hidden="true">VII</span>
+              <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>Sleep Journal
+            </p>
             <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
               Every night, kept like a pressed flower
             </h2>

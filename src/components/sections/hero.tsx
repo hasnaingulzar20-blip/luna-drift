@@ -109,6 +109,8 @@ export default function Hero() {
         <div>
           <p className="flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
             <MoonStar className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="text-moon-300/40" aria-hidden="true">I</span>
+            <span className="text-white/20" aria-hidden="true">·</span>
             Tonight&apos;s pick
             {now && (
               <span className="text-mist-400 normal-case tracking-normal">

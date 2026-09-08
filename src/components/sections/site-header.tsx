@@ -38,6 +38,7 @@ export default function SiteHeader() {
   const isPlaying = usePlayer((s) => s.isPlaying);
   const timerDuration = usePlayer((s) => s.timerDuration);
   const remainingSeconds = usePlayer((s) => s.remainingSeconds);
+  const sequence = usePlayer((s) => s.sequence);
   const stopAll = usePlayer((s) => s.stopAll);
   const wakeAlarm = usePlayer((s) => s.wakeAlarm);
   const [scrolled, setScrolled] = useState(false);
@@ -99,6 +100,14 @@ export default function SiteHeader() {
               {timerDuration && (
                 <span className="rounded-full bg-moon-200/10 px-2 py-0.5 font-mono text-[11px] text-moon-200">
                   {formatRemaining(remainingSeconds)}
+                </span>
+              )}
+              {sequence && (
+                <span
+                  className="rounded-full bg-moon-200/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-moon-200"
+                  title={`Wind-down: ${sequence.name} — step ${sequence.stepIndex + 1} of ${sequence.steps.length}`}
+                >
+                  WD {sequence.stepIndex + 1}/{sequence.steps.length}
                 </span>
               )}
               <button

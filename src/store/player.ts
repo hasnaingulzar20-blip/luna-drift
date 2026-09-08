@@ -10,6 +10,12 @@ import {
   type MixPreset,
   type SoundscapeId,
 } from "@/lib/soundscapes";
+import {
+  SEQUENCE_MAX_CUSTOM,
+  clampStepMinutes,
+  type WindDownSequence,
+  type WindDownStep,
+} from "@/lib/sequences";
 
 export type TimerDuration = 30 | 60 | 90 | null;
 
@@ -27,6 +33,17 @@ export interface WakeAlarm {
   enabled: boolean;
   time: string; // "HH:MM" 24h
   lastFiredDay: string | null; // guards against double-firing on one day
+}
+
+/** runtime view of the wind-down sequence that is playing right now */
+export interface ActiveSequence {
+  seqId: string;
+  name: string;
+  steps: WindDownStep[];
+  stepIndex: number;
+  stepEndsAt: number; // epoch ms when the current step hands over
+  stepRemaining: number; // seconds, display only
+  lastSound: SoundscapeId | null; // for the journal record at the end
 }
 
 const MAX_PRESETS = 12;
@@ -71,6 +88,10 @@ interface PlayerState {
   remainingSeconds: number;
   starIntensity: number; // 0.2..1 — dims as timer drains
 
+  /* wind-down sequences */
+  sequence: ActiveSequence | null; // live handover (not persisted)
+  customSequences: WindDownSequence[]; // the personal shelf (persisted)
+
   /* immersion */
   immersive: boolean;
 
@@ -92,6 +113,10 @@ interface PlayerState {
   setChimeOnEnd: (v: boolean) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   cancelTimer: () => void;
+  startSequence: (seq: WindDownSequence) => void;
+  cancelSequence: () => void; // ends the handover, keeps the current room playing
+  saveSequence: (name: string, steps: WindDownStep[]) => WindDownSequence | null;
+  deleteSequence: (id: string) => void;
   toggleImmersive: () => void;
   setImmersive: (v: boolean) => void;
   tick: () => void;
@@ -134,6 +159,9 @@ export const usePlayer = create<PlayerState>()(
       timerEndsAt: null,
       remainingSeconds: 0,
       starIntensity: 1,
+
+      sequence: null,
+      customSequences: [],
 
       immersive: false,
 
@@ -184,6 +212,7 @@ export const usePlayer = create<PlayerState>()(
           timerEndsAt: null,
           remainingSeconds: 0,
           starIntensity: 1,
+          sequence: null,
         });
       },
 
@@ -368,6 +397,7 @@ export const usePlayer = create<PlayerState>()(
           timerDuration: minutes,
           timerEndsAt: Date.now() + minutes * 60_000,
           remainingSeconds: minutes * 60,
+          sequence: null, // the timer takes over the ending
         });
       },
 
@@ -381,11 +411,120 @@ export const usePlayer = create<PlayerState>()(
         });
       },
 
+      startSequence: (seq) => {
+        if (!seq.steps.length) return;
+        const s = get();
+        s.cancelTimer(); // the sequence owns the ending now
+        const first = seq.steps[0];
+        if (first.soundscape === "silence") {
+          audioEngine.stopAll(2.5);
+          set({ active: null, isPlaying: false });
+        } else {
+          s.playSoundscape(first.soundscape);
+        }
+        set({
+          sequence: {
+            seqId: seq.id,
+            name: seq.name,
+            steps: seq.steps,
+            stepIndex: 0,
+            stepEndsAt: Date.now() + first.minutes * 60_000,
+            stepRemaining: first.minutes * 60,
+            lastSound: first.soundscape === "silence" ? null : first.soundscape,
+          },
+        });
+      },
+
+      cancelSequence: () => set({ sequence: null }),
+
+      saveSequence: (name, steps) => {
+        const trimmed = name.trim().slice(0, 32);
+        if (!trimmed || steps.length === 0) return null;
+        const s = get();
+        const seq: WindDownSequence = {
+          id: `ws-${Date.now().toString(36)}`,
+          name: trimmed,
+          steps: steps.map((st, i) => ({
+            id: `s${i}`,
+            soundscape: st.soundscape,
+            minutes: clampStepMinutes(st.minutes),
+          })),
+        };
+        set({
+          customSequences: [...s.customSequences, seq].slice(-SEQUENCE_MAX_CUSTOM),
+        });
+        return seq;
+      },
+
+      deleteSequence: (id) =>
+        set((s) => ({
+          customSequences: s.customSequences.filter((x) => x.id !== id),
+        })),
+
       toggleImmersive: () => set((s) => ({ immersive: !s.immersive })),
       setImmersive: (v) => set({ immersive: v }),
 
       tick: () => {
         const s = get();
+
+        // ── wind-down sequence handover ──
+        if (s.sequence) {
+          const seq = s.sequence;
+          const stepRemaining = Math.max(
+            0,
+            Math.round((seq.stepEndsAt - Date.now()) / 1000)
+          );
+          if (stepRemaining <= 0) {
+            const next = seq.steps[seq.stepIndex + 1];
+            if (!next) {
+              // the last step was silence itself — end quietly, log the drift
+              audioEngine.stopAll(2.5);
+              const minutes = s.sessionStartedAt
+                ? Math.max(1, Math.round((Date.now() - s.sessionStartedAt) / 60000))
+                : 0;
+              if (minutes >= 1) {
+                void recordSession({
+                  soundscape: seq.lastSound ?? "mix",
+                  minutes,
+                  completed: true,
+                });
+              }
+              set({
+                sequence: null,
+                active: null,
+                isPlaying: false,
+                sessionStartedAt: null,
+                timerDuration: null,
+                timerEndsAt: null,
+                remainingSeconds: 0,
+                starIntensity: 1,
+              });
+            } else {
+              // hand the night over to the next room
+              if (next.soundscape === "silence") {
+                audioEngine.stopAll(2.5);
+                set({ active: null, isPlaying: false });
+              } else {
+                get().playSoundscape(next.soundscape);
+              }
+              set({
+                sequence: {
+                  ...seq,
+                  stepIndex: seq.stepIndex + 1,
+                  stepEndsAt: Date.now() + next.minutes * 60_000,
+                  stepRemaining: next.minutes * 60,
+                  lastSound:
+                    next.soundscape === "silence"
+                      ? seq.lastSound
+                      : next.soundscape,
+                },
+              });
+            }
+          } else {
+            set({ sequence: { ...seq, stepRemaining } });
+          }
+        }
+
         if (!s.timerEndsAt) return;
         const remaining = Math.max(0, Math.round((s.timerEndsAt - Date.now()) / 1000));
         const total = (s.timerDuration ?? 30) * 60;
@@ -440,6 +579,7 @@ export const usePlayer = create<PlayerState>()(
         trims: s.trims,
         wakeAlarm: s.wakeAlarm,
         chimeOnEnd: s.chimeOnEnd,
+        customSequences: s.customSequences,
       }),
     }
   )

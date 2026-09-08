@@ -1,4 +1,16 @@
+"use client";
+
+import { useState } from "react";
+import { getMoonPhase } from "@/lib/moon";
+
 export default function SiteFooter() {
+  // computed lazily on first render — the phase drifts slowly enough
+  // that a per-mount read is all the footer needs
+  const [moon] = useState(() => {
+    const p = getMoonPhase();
+    return { name: p.name, illumination: p.illumination };
+  });
+
   return (
     <footer className="mt-auto">
       <div className="mx-auto max-w-6xl px-5 pb-8 pt-16">
@@ -25,10 +37,17 @@ export default function SiteFooter() {
 
           <p className="text-center text-[11px] italic leading-relaxed text-mist-500">
             sleep well — the moon keeps watch
-            <span className="mt-0.5 block not-italic text-mist-600">made for quiet hours · headphones advised</span>
-            <span className="mt-1 block font-mono text-[10px] not-italic tracking-wide text-mist-600/80">
-              space play/pause · 1–7 soundscapes · m immersion
+            <span className="mt-0.5 block not-italic text-mist-500" suppressHydrationWarning>
+              tonight: {moon.name} · {Math.round(moon.illumination * 100)}% lit
             </span>
+            <span className="mt-0.5 block not-italic text-mist-600">made for quiet hours · headphones advised</span>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent("luna:show-shortcuts"))}
+              className="mt-1 block font-mono text-[10px] not-italic tracking-wide text-mist-600/80 underline decoration-mist-700/60 underline-offset-4 transition hover:text-moon-300 hover:decoration-moon-300/50"
+            >
+              space play/pause · 1–7 soundscapes · m immersion · ? all keys
+            </button>
           </p>
         </div>
       </div>

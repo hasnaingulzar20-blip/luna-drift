@@ -9,6 +9,7 @@ import MediaSessionBridge from "@/components/atmosphere/media-session";
 import WakeLight from "@/components/atmosphere/wake-light";
 import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
+import SharedMixBanner from "@/components/atmosphere/shared-mix";
 import SiteHeader from "@/components/sections/site-header";
 import Hero from "@/components/sections/hero";
 import Library from "@/components/sections/library";
@@ -19,6 +20,7 @@ import SleepTimer from "@/components/sections/sleep-timer";
 import Journal from "@/components/sections/journal";
 import SiteFooter from "@/components/sections/site-footer";
 import ImmersiveHint from "@/components/sections/immersive-hint";
+import ShortcutsDialog from "@/components/sections/shortcuts-dialog";
 import { usePlayer } from "@/store/player";
 import { SOUNDSCAPES, TONIGHTS_PICK } from "@/lib/soundscapes";
 
@@ -117,6 +119,12 @@ export default function Home() {
       </div>
 
       {immersive && <ImmersiveHint />}
+
+      {/* a mix that drifted in with the link */}
+      <SharedMixBanner />
+
+      {/* quiet keys */}
+      <ShortcutsDialog />
 
       {/* the dawn, when it comes */}
       <WakeLight />

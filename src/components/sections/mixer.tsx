@@ -7,6 +7,7 @@ import {
   CloudRain,
   Flame,
   Info,
+  Link2,
   Plus,
   SlidersHorizontal,
   Star,
@@ -18,6 +19,7 @@ import {
 import { Slider } from "@/components/ui/slider";
 import { usePlayer } from "@/store/player";
 import { MIXER_LAYERS, MIX_PRESETS, TONIGHTS_PICK, getSoundscape, type MixerLayerId } from "@/lib/soundscapes";
+import { buildMixLink } from "@/components/atmosphere/shared-mix";
 
 const LAYER_ICONS = {
   rain: CloudRain,
@@ -73,7 +75,10 @@ export default function Mixer() {
           <div className="relative grid gap-10 lg:grid-cols-[0.9fr_1.1fr]">
             {/* left: copy + presets */}
             <div>
-              <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">The Mixer</p>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
+                <span className="text-moon-300/40" aria-hidden="true">III</span>
+                <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>The Mixer
+              </p>
               <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
                 Layer your own night
               </h2>
@@ -135,14 +140,40 @@ export default function Mixer() {
                             {getSoundscape(p.base).name} · rain {Math.round(p.rain * 100)} · wind {Math.round(p.wind * 100)} · fire {Math.round(p.fire * 100)}
                           </span>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => deleteCustomPreset(p.id)}
-                          aria-label={`Delete preset ${p.name}`}
-                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const link = buildMixLink({
+                                name: p.name,
+                                base: p.base,
+                                rain: p.rain,
+                                wind: p.wind,
+                                fire: p.fire,
+                              });
+                              try {
+                                await navigator.clipboard.writeText(link);
+                                setExportNote(`link copied for “${p.name}”`);
+                              } catch {
+                                setExportNote("could not reach the clipboard");
+                              }
+                              setTimeout(() => setExportNote(null), 2600);
+                            }}
+                            aria-label={`Copy share link for ${p.name}`}
+                            title="Copy a share link for this mix"
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-200 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <Link2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteCustomPreset(p.id)}
+                            aria-label={`Delete preset ${p.name}`}
+                            className="flex h-8 w-8 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
