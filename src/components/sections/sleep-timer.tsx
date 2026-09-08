@@ -91,7 +91,7 @@ export default function SleepTimer() {
 
             {/* countdown dial */}
             <div className="mx-auto flex flex-col items-center">
-              <div className="relative h-40 w-40 sm:h-44 sm:w-44">
+              <div className={`relative h-40 w-40 sm:h-44 sm:w-44 ${fading ? "animate-pulse" : ""}`}>
                 <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
                   <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(159,173,216,0.12)" strokeWidth="4" />
                   <circle

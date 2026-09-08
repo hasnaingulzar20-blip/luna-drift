@@ -94,6 +94,13 @@ export default function Hero() {
                 aria-hidden="true"
                 className={`absolute inset-0 rounded-full border border-moon-200/25 ${isThisActive ? "anim-spin-slower border-dashed" : ""}`}
               />
+              {/* orbiting moonlet */}
+              <span
+                aria-hidden="true"
+                className="anim-spin-slower pointer-events-none absolute -inset-1"
+              >
+                <span className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 rounded-full bg-moon-200/80 shadow-[0_0_10px_rgba(236,226,200,0.8)]" />
+              </span>
               <span
                 aria-hidden="true"
                 className={`absolute inset-2 rounded-full bg-[radial-gradient(circle,rgba(236,226,200,0.16),transparent_70%)] transition-opacity duration-700 ${isThisActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}

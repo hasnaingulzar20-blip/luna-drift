@@ -18,6 +18,7 @@ export default function SiteFooter() {
             <a href="#library" className="transition hover:text-moon-200">Library</a>
             <a href="#mixer" className="transition hover:text-moon-200">Mixer</a>
             <a href="#stories" className="transition hover:text-moon-200">Stories</a>
+            <a href="#breathe" className="transition hover:text-moon-200">Breathe</a>
             <a href="#timer" className="transition hover:text-moon-200">Timer</a>
             <a href="#journal" className="transition hover:text-moon-200">Journal</a>
           </nav>
@@ -25,6 +26,9 @@ export default function SiteFooter() {
           <p className="text-center text-[11px] italic leading-relaxed text-mist-500">
             sleep well — the moon keeps watch
             <span className="mt-0.5 block not-italic text-mist-600">made for quiet hours · headphones advised</span>
+            <span className="mt-1 block font-mono text-[10px] not-italic tracking-wide text-mist-600/80">
+              space play/pause · 1–7 soundscapes · m immersion
+            </span>
           </p>
         </div>
       </div>

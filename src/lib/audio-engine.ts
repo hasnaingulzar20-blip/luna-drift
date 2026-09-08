@@ -12,7 +12,8 @@ export type SoundscapeId =
   | "ocean"
   | "cafe"
   | "fireplace"
-  | "piano";
+  | "piano"
+  | "train";
 
 export type MixLayerId = "rain" | "wind" | "fire";
 
@@ -697,6 +698,96 @@ const buildPiano: Builder = (ctx, out) => {
   };
 };
 
+const buildTrain: Builder = (ctx, out) => {
+  const timers = new Timers();
+  const s: Sources = { nodes: [] };
+
+  // deep rumble of the rolling stock
+  const rumble = noiseSource(ctx, s, "brown");
+  const rLp = ctx.createBiquadFilter();
+  rLp.type = "lowpass";
+  rLp.frequency.value = 110;
+  const rGain = ctx.createGain();
+  rGain.gain.value = 0.17;
+  rumble.connect(rLp).connect(rGain).connect(out);
+
+  // the whole car gently rocking
+  const rock = ctx.createOscillator();
+  rock.frequency.value = 0.17;
+  const rockAmt = ctx.createGain();
+  rockAmt.gain.value = 0.05;
+  rock.connect(rockAmt).connect(rGain.gain);
+  rock.start();
+
+  // wind combing past the window
+  const wind = noiseSource(ctx, s, "pink");
+  const wLp = ctx.createBiquadFilter();
+  wLp.type = "lowpass";
+  wLp.frequency.value = 760;
+  const wGain = ctx.createGain();
+  wGain.gain.value = 0.05;
+  wind.connect(wLp).connect(wGain).connect(out);
+  const wLfo = ctx.createOscillator();
+  wLfo.frequency.value = 0.07;
+  const wLfoAmt = ctx.createGain();
+  wLfoAmt.gain.value = 0.028;
+  wLfo.connect(wLfoAmt).connect(wGain.gain);
+  wLfo.start();
+  s.nodes.push(rock, wLfo);
+
+  // track joints — a hypnotic clack…clack pair drifting around 36 bpm
+  let period = rnd(1650, 1850);
+  const scheduleClack = () => {
+    burst(ctx, out, {
+      filter: { type: "bandpass", freq: rnd(700, 1000), q: 1.2 },
+      gain: rnd(0.04, 0.08),
+      decay: 0.09,
+    });
+    timers.after(rnd(110, 150), () =>
+      burst(ctx, out, {
+        filter: { type: "bandpass", freq: rnd(600, 900), q: 1.2 },
+        gain: rnd(0.03, 0.06),
+        decay: 0.08,
+      })
+    );
+    timers.after(period, scheduleClack);
+    period = rnd(1600, 1950);
+  };
+  scheduleClack();
+
+  // a horn somewhere across the valley, rare and low
+  const horn = timers.every(rnd(50000, 100000), () => {
+    const t = ctx.currentTime;
+    [110, 164.8].forEach((f) => {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = f;
+      osc.detune.value = rnd(-6, 6);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.026, t + 0.9);
+      g.gain.setValueAtTime(0.026, t + 2.1);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 3.6);
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass";
+      lp.frequency.value = 520;
+      osc.connect(g).connect(lp).connect(out);
+      osc.start(t);
+      osc.stop(t + 3.8);
+    });
+  });
+
+  return () => {
+    horn();
+    timers.dispose();
+    s.nodes.forEach((n) => {
+      try {
+        n.stop();
+      } catch { /* noop */ }
+    });
+  };
+};
+
 const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   rain: buildRain,
   forest: buildForest,
@@ -704,6 +795,7 @@ const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   cafe: buildCafe,
   fireplace: buildFire,
   piano: buildPiano,
+  train: buildTrain,
 };
 
 const MIX_BUILDERS: Record<MixLayerId, Builder> = {

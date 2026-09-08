@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dayKey, ensureProfile, recalcStreak } from "@/lib/journal";
 
-const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "mix"]);
+const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "mix"]);
 
 export async function POST(req: Request) {
   try {

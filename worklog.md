@@ -50,3 +50,23 @@ Work Log:
 Stage Summary:
 - Project is feature-complete for the v1 spec: hero tonight's pick, 6-soundscape library, 3-layer mixer with presets, 3 narrated sleep stories, 30/60/90 sleep timer with 60-second fade + star dimming, streak/minutes journal, moon arc at 12-hour pace, cursor light trail, immersion mode.
 - Suggested next-phase priorities (for the cron reviewer): breathing guide (4-7-8) overlay; favorites + "back to sleep" quick resume; alarm/wake-light; more soundscapes (library is data-driven — add builder + entry); session analytics polish; PWA manifest + media-session API for lockscreen controls; keyboard shortcuts (space = play/pause); reduced-data mode.
+
+---
+
+Task ID: 2
+Agent: cron webDevReview (round 2)
+Task: QA assessment + breathing guide + Night Train soundscape + media/keyboard controls + styling polish
+
+Work Log:
+- QA assessment first: app healthy (200), zero page/console errors, all 10 images loading, all v1 features re-verified. No regressions found → proceeded to feature round.
+- [Feature] Breathing guide (src/components/sections/breathe.tsx): 4-7-8 protocol with a breathing moon orb (expands on inhale 4s, shimmers on hold 7s, contracts on exhale 8s), phase ring depleting per phase, live seconds countdown + aria-live phase announcements, cycle counter, begin/pause/reset. Timestamp-driven rAF clock stays honest in background tabs. Placed between Stories and Timer; nav links added in header + footer.
+- [Feature] Night Train soundscape (7th library card): new procedural builder in audio-engine.ts — brown-noise rumble with slow rocking LFO, pink wind past the window, hypnotic track-joint "clack-clack" pairs every ~1.6-1.95s, rare low two-tone horn across the valley. Type unions updated in both soundscapes.ts + audio-engine.ts; sessions API VALID set extended; dedicated AI artwork generated (public/images/sc-train.png).
+- [Feature] Media Session bridge (src/components/atmosphere/media-session.tsx): lockscreen/media-key play/pause/stop, artwork + title/artist metadata, playbackState sync (verified: state "playing", title "Night Train").
+- [Feature] Keyboard shortcuts in page.tsx: Space = play/pause (guarded against form fields), 1-7 = direct soundscape select, M = immersion toggle (verified all via agent-browser). Hint line added to footer.
+- [Styling] Film grain overlay (SVG turbulence, mix-blend-overlay, z-65, 4.5% opacity) for a photographed feel; Reveal component (IntersectionObserver fade-up, reduced-motion aware) wrapping all main sections; header gains denser glass + shadow after scroll > 32px; hero play button now has an orbiting moonlet on its ring; timer dial pulses during the final-minute fade.
+- Verification: lint clean; browser-verified breathing full cycle (inhale→hold→exhale), Night Train playback, keyboard shortcuts (space/3/m/esc), media session metadata, library card render. Zero console errors.
+
+Stage Summary:
+- App now has 7 soundscapes, 8 sections (Tonight, Library, Mixer, Stories, Breathe, Timer, Journal + immersive sky), OS-level media controls, and keyboard-first operation.
+- All round-2 features verified working; no known bugs outstanding.
+- Next-phase recommendations: favorites (star a soundscape, filter/sort); "continue where you drifted" resume chip in hero (localStorage last-played); wake-light/alarm feature; more mix presets + custom preset saving; soundscape volume trims per base; PWA manifest + offline shell; weekly journal insights (best night, avg session); subtle Web Audio analyser-driven visual pulse in the hero art while playing.

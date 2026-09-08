@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Moon, Square } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { getSoundscape } from "@/lib/soundscapes";
@@ -38,19 +39,34 @@ export default function SiteHeader() {
   const timerDuration = usePlayer((s) => s.timerDuration);
   const remainingSeconds = usePlayer((s) => s.remainingSeconds);
   const stopAll = usePlayer((s) => s.stopAll);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 32);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const nav = [
     { href: "#tonight", label: "Tonight" },
     { href: "#library", label: "Library" },
     { href: "#mixer", label: "Mixer" },
     { href: "#stories", label: "Stories" },
+    { href: "#breathe", label: "Breathe" },
     { href: "#timer", label: "Timer" },
     { href: "#journal", label: "Journal" },
   ];
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
-      <div className="glass-chip mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 py-2.5 sm:px-5 mt-3">
+      <div
+        className={`mx-auto mt-3 flex max-w-6xl items-center justify-between gap-3 rounded-2xl px-4 py-2.5 sm:px-5 transition-all duration-500 ${
+          scrolled
+            ? "glass-chip shadow-[0_18px_50px_-20px_rgba(2,4,12,0.9)] bg-night-900/70"
+            : "glass-chip"
+        }`}
+      >
         <a href="#tonight" className="group flex items-center gap-2.5">
           <span className="relative flex h-8 w-8 items-center justify-center rounded-full bg-moon-200/10 ring-1 ring-moon-200/30 transition group-hover:ring-moon-200/60">
             <Moon className="h-4 w-4 text-moon-200 transition-transform duration-500 group-hover:-rotate-12" />

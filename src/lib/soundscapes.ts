@@ -4,7 +4,8 @@ export type SoundscapeId =
   | "ocean"
   | "cafe"
   | "fireplace"
-  | "piano";
+  | "piano"
+  | "train";
 
 export interface Soundscape {
   id: SoundscapeId;
@@ -91,6 +92,18 @@ export const SOUNDSCAPES: Soundscape[] = [
     hue: "#b7a3d6",
     glow: "rgba(183,163,214,0.28)",
     image: "/images/sc-piano.png",
+  },
+  {
+    id: "train",
+    name: "Night Train",
+    tagline: "Rails, sway & distant horns",
+    description:
+      "The late service through sleeping country. A steady rumble underfoot, track joints ticking past like a metronome, and — very occasionally — a horn somewhere across the valley.",
+    duration: "75 min",
+    bpmHint: "looping",
+    hue: "#a092c4",
+    glow: "rgba(160,146,196,0.3)",
+    image: "/images/sc-train.png",
   },
 ];
 
