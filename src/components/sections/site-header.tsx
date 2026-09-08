@@ -42,6 +42,7 @@ export default function SiteHeader() {
   const stopAll = usePlayer((s) => s.stopAll);
   const wakeAlarm = usePlayer((s) => s.wakeAlarm);
   const dawnMode = usePlayer((s) => s.dawnMode);
+  const driftMode = usePlayer((s) => s.driftMode);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState<string | null>(null);
 
@@ -142,6 +143,14 @@ export default function SiteHeader() {
                   title={`Wind-down: ${sequence.name} — step ${sequence.stepIndex + 1} of ${sequence.steps.length}`}
                 >
                   WD {sequence.stepIndex + 1}/{sequence.steps.length}
+                </span>
+              )}
+              {driftMode && (
+                <span
+                  className="rounded-full bg-moon-200/10 px-2 py-0.5 font-mono text-[10px] tracking-wide text-moon-200"
+                  title="Drifting for hours — the night renews itself until the hours run out"
+                >
+                  rolling
                 </span>
               )}
               {dawnMode && (

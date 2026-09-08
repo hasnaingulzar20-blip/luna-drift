@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { BookOpenText, Pause, Play, RotateCcw, Volume2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BookOpenText, Pause, Play, RotateCcw, Star, Volume2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { STORIES, type SleepStory } from "@/lib/stories";
@@ -17,10 +17,20 @@ function fmt(t: number) {
 }
 
 function StoryCard({ story }: { story: SleepStory }) {
+  const pinned = usePlayer((s) => s.favoriteStories.includes(story.id));
+  const toggleFavoriteStory = usePlayer((s) => s.toggleFavoriteStory);
+  const pin = (e: React.SyntheticEvent) => {
+    // keep the pin from opening the dialog — the card itself is the trigger
+    e.stopPropagation();
+    e.preventDefault();
+    toggleFavoriteStory(story.id);
+  };
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <article className="group relative cursor-pointer overflow-hidden rounded-3xl ring-1 ring-white/5 transition-all duration-500 hover:ring-moon-200/30">
+        <article className={`group relative cursor-pointer overflow-hidden rounded-3xl ring-1 transition-all duration-500 hover:ring-moon-200/30 ${
+          pinned ? "ring-moon-200/25" : "ring-white/5"
+        }`}>
           <div className="relative h-60 overflow-hidden sm:h-64">
             <img
               src={story.cover}
@@ -46,6 +56,29 @@ function StoryCard({ story }: { story: SleepStory }) {
           <span className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-night-950/55 text-moon-100 ring-1 ring-moon-200/25 backdrop-blur transition group-hover:bg-moon-200 group-hover:text-night-950">
             <BookOpenText className="h-4 w-4" aria-hidden="true" />
           </span>
+          {/* keep-close pin — stops propagation so it never opens the dialog */}
+          <button
+            type="button"
+            onClick={pin}
+            onPointerDown={(e) => e.stopPropagation()}
+            aria-pressed={pinned}
+            aria-label={pinned ? `Stop keeping ${story.title} close` : `Keep ${story.title} close`}
+            title={pinned ? "kept close — click to release" : "keep this story close"}
+            className={`absolute left-4 top-4 flex h-10 w-10 items-center justify-center rounded-full backdrop-blur transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-moon-200 ${
+              pinned
+                ? "bg-moon-200 text-night-950 shadow-[0_0_18px_rgba(236,226,200,0.35)] ring-1 ring-moon-100/50"
+                : "bg-night-950/55 text-mist-300 ring-1 ring-moon-200/25 hover:bg-moon-200/20 hover:text-moon-100"
+            }`}
+          >
+            <Star className={`h-4 w-4 ${pinned ? "fill-current" : ""}`} aria-hidden="true" />
+          </button>
+          {pinned && (
+            <span
+              className="pointer-events-none absolute bottom-[4.4rem] left-5 rounded-full bg-moon-200/15 px-2.5 py-1 text-[10px] uppercase tracking-[0.22em] text-moon-200 ring-1 ring-moon-200/30 backdrop-blur"
+            >
+              kept close
+            </span>
+          )}
           {/* one slow sweep of moonlight across the cover on hover */}
           <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
             <span className="story-shine absolute -inset-y-10 -left-1/2 w-1/3 bg-gradient-to-r from-transparent via-moon-100/[0.13] to-transparent" />
@@ -63,6 +96,8 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startAmbient = usePlayer((s) => s.playSoundscape);
   const isPlaying = usePlayer((s) => s.isPlaying);
+  const pinned = usePlayer((s) => s.favoriteStories.includes(story.id));
+  const toggleFavoriteStory = usePlayer((s) => s.toggleFavoriteStory);
 
   // never leave the bed ducked behind a closed dialog
   useEffect(() => {
@@ -160,6 +195,20 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
             </DialogTitle>
           </div>
           <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => toggleFavoriteStory(story.id)}
+              aria-pressed={pinned}
+              aria-label={pinned ? `Stop keeping ${story.title} close` : `Keep ${story.title} close`}
+              title={pinned ? "kept close — click to release" : "keep this story close"}
+              className={`flex h-10 w-10 items-center justify-center rounded-full ring-1 transition ${
+                pinned
+                  ? "bg-moon-200 text-night-950 ring-moon-100/50"
+                  : "bg-white/[0.06] text-mist-300 ring-moon-200/25 hover:bg-moon-200/15 hover:text-moon-100"
+              }`}
+            >
+              <Star className={`h-4 w-4 ${pinned ? "fill-current" : ""}`} aria-hidden="true" />
+            </button>
             {resumeAt !== null && (
               <button
                 type="button"
@@ -216,6 +265,15 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
 }
 
 export default function Stories() {
+  const favoriteStories = usePlayer((s) => s.favoriteStories);
+  // pinned stories lead the shelf; the rest keep their written order
+  const ordered = useMemo(() => {
+    const pinnedSet = new Set(favoriteStories);
+    return [...STORIES].sort(
+      (a, b) => Number(pinnedSet.has(b.id)) - Number(pinnedSet.has(a.id))
+    );
+  }, [favoriteStories]);
+
   return (
     <section id="stories" aria-label="Sleep stories" className="relative mt-24 scroll-mt-28 sm:mt-32">
       <div className="mx-auto max-w-6xl px-5">
@@ -235,7 +293,7 @@ export default function Stories() {
         </div>
 
         <div className="mt-9 grid gap-5 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5">
-          {STORIES.map((s) => (
+          {ordered.map((s) => (
             <StoryCard key={s.id} story={s} />
           ))}
         </div>

@@ -1232,9 +1232,10 @@ export class AudioEngine {
       this.baseId = null;
       Object.values(this.mix).forEach((l) => l?.dispose());
       this.mix = {};
+      const ctx = this.ctx;
       setTimeout(() => {
         try {
-          this.fade.gain.setValueAtTime(1, this.ctx.currentTime);
+          if (ctx) this.fade.gain.setValueAtTime(1, ctx.currentTime);
         } catch { /* noop */ }
       }, 300);
     };

@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronUp,
+  Hourglass,
   Info,
   Link2,
   ListMusic,
@@ -51,6 +52,16 @@ function formatRemaining(sec: number) {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+}
+
+/** wall-clock of a rolling night's end — "3:40 am" */
+function fmtClock(ts: number) {
+  const d = new Date(ts);
+  let h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  const ap = h >= 12 ? "pm" : "am";
+  h = h % 12 || 12;
+  return `${h}:${m} ${ap}`;
 }
 
 const SILENCE_LABEL = "Silence";
@@ -130,6 +141,10 @@ export default function SleepTimer() {
   const tillDawn = usePlayer((s) => s.tillDawn);
   const setTillDawn = usePlayer((s) => s.setTillDawn);
   const dawnMode = usePlayer((s) => s.dawnMode);
+  const driftHours = usePlayer((s) => s.driftHours);
+  const setDriftHours = usePlayer((s) => s.setDriftHours);
+  const driftMode = usePlayer((s) => s.driftMode);
+  const driftEndsAt = usePlayer((s) => s.driftEndsAt);
   const stopAll = usePlayer((s) => s.stopAll);
   const extendTimer = usePlayer((s) => s.extendTimer);
 
@@ -176,6 +191,8 @@ export default function SleepTimer() {
   const circumference = 2 * Math.PI * 54;
   const fading = timerDuration !== null && remainingSeconds <= 60 && remainingSeconds > 0;
   const dawn = dawnMode && isPlaying;
+  const rolling = driftMode && isPlaying;
+  const rollingLeftMs = rolling && driftEndsAt ? Math.max(0, driftEndsAt - Date.now()) : 0;
 
   return (
     <section id="timer" aria-label="Sleep timer" className="relative mt-24 scroll-mt-28 sm:mt-32">
@@ -302,7 +319,17 @@ export default function SleepTimer() {
                     </span>
                   )}
                   <span className="mt-1 text-[10px] uppercase tracking-[0.25em] text-mist-500">
-                    {dawn ? "whispering" : timerDuration ? (fading ? "fading out" : "drifting") : "no timer"}
+                    {dawn
+                      ? "whispering"
+                      : timerDuration
+                        ? fading
+                          ? rolling
+                            ? "renewing"
+                            : "fading out"
+                          : rolling
+                            ? "rolling"
+                            : "drifting"
+                        : "no timer"}
                   </span>
                 </div>
               </div>
@@ -317,16 +344,18 @@ export default function SleepTimer() {
               ) : (
                 fading && (
                   <p className="mt-3 animate-pulse text-xs italic text-moon-300/80">
-                    the long fade has begun…
+                    {rolling
+                      ? `the night renews itself — until ${driftEndsAt ? fmtClock(driftEndsAt) : ""}`
+                      : "the long fade has begun…"}
                   </p>
                 )
               )}
             </div>
           </div>
 
-          {/* ── endings: wake light · last bell · drift till dawn ── */}
+          {/* ── endings: wake light · last bell · drift for hours · drift till dawn ── */}
           <Ornament className="mt-10" />
-          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
             {/* wake light */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
@@ -396,6 +425,66 @@ export default function SleepTimer() {
                   onCheckedChange={setChimeOnEnd}
                   aria-label="Ring a soft bell when the timer completes"
                 />
+              </div>
+            </div>
+
+            {/* drift for hours */}
+            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+              <div
+                aria-hidden="true"
+                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(205,180,124,0.12),transparent_70%)]"
+                style={{ animationDelay: "1.8s" }}
+              />
+              <div className="relative">
+                <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+                  <Hourglass className="h-3.5 w-3.5 text-moon-300" aria-hidden="true" />
+                  drift for hours
+                </p>
+                <p className="mt-2 text-xs leading-relaxed text-mist-400">
+                  When the timer completes, the night renews itself — the room keeps
+                  rolling, chunk after chunk, until the hours run out. Then the long
+                  fade takes it home.
+                </p>
+                <div
+                  className="mt-3 flex flex-wrap items-center gap-2"
+                  role="group"
+                  aria-label="Hours the night should roll"
+                >
+                  {([4, 6, 8] as const).map((h) => {
+                    const on = driftHours === h;
+                    return (
+                      <button
+                        key={h}
+                        type="button"
+                        onClick={() => setDriftHours(on ? null : h)}
+                        aria-pressed={on}
+                        title={on ? `stop after this chunk — turn off ${h} hours` : `roll the night for ${h} hours`}
+                        className={`flex h-8 min-w-14 items-center justify-center rounded-full font-mono text-xs transition-all duration-300 ${
+                          on
+                            ? "bg-moon-200 text-night-950 shadow-[0_0_22px_rgba(236,226,200,0.3)]"
+                            : "bg-white/[0.03] text-moon-100 ring-1 ring-white/10 hover:bg-moon-200/10 hover:ring-moon-200/30"
+                        }`}
+                      >
+                        {h} h
+                      </button>
+                    );
+                  })}
+                </div>
+                <p
+                  className="mt-2 font-mono text-[11px] text-moon-300/90"
+                  aria-live="polite"
+                >
+                  {rolling && driftEndsAt
+                    ? `rolling until ${fmtClock(driftEndsAt)} · ${Math.floor(rollingLeftMs / 3_600_000)}h ${Math.floor((rollingLeftMs % 3_600_000) / 60_000)}m of night left`
+                    : driftHours
+                      ? `armed — ${driftHours} hours of the current room`
+                      : "off — the timer ends when it ends"}
+                </p>
+                {tillDawn && driftHours && (
+                  <p className="mt-1.5 text-[10px] italic leading-relaxed text-mist-600">
+                    the rolling hours win — till-dawn waits for a night without a plan
+                  </p>
+                )}
               </div>
             </div>
 

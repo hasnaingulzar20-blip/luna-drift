@@ -25,6 +25,7 @@ import {
 export const DAWN_WHISPER = 0.3;
 
 export type TimerDuration = 30 | 60 | 90 | null;
+export type DriftHours = 4 | 6 | 8 | null;
 
 export interface CustomPreset {
   id: string;
@@ -74,6 +75,7 @@ interface PlayerState {
 
   /* favorites & resume */
   favorites: SoundscapeId[];
+  favoriteStories: string[];
   lastPlayed: { id: SoundscapeId; at: number } | null;
 
   /* mixer */
@@ -95,6 +97,11 @@ interface PlayerState {
   /* drift till dawn */
   tillDawn: boolean; // preference: after the timer, keep a whisper going
   dawnMode: boolean; // live: the room is whispering until morning right now
+
+  /* drift for hours — the timer renews itself until the hours run out */
+  driftHours: DriftHours; // preference (persisted)
+  driftMode: boolean; // live: chunks are rolling right now
+  driftEndsAt: number | null; // epoch ms the rolling night ends (runtime only)
 
   /* sleep timer */
   timerDuration: TimerDuration; // planned minutes (for display/record)
@@ -126,6 +133,8 @@ interface PlayerState {
   checkWake: () => void;
   setChimeOnEnd: (v: boolean) => void;
   setNightCap: (v: boolean) => void;
+  setDriftHours: (v: DriftHours) => void;
+  toggleFavoriteStory: (id: string) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   /** push the running timer's end later by extra minutes (default 15) */
   extendTimer: (extra?: number) => void;
@@ -180,6 +189,10 @@ export const usePlayer = create<PlayerState>()(
       tillDawn: false,
       dawnMode: false,
 
+      driftHours: null,
+      driftMode: false,
+      driftEndsAt: null,
+
       timerDuration: null,
       timerEndsAt: null,
       remainingSeconds: 0,
@@ -191,10 +204,9 @@ export const usePlayer = create<PlayerState>()(
       immersive: false,
 
       favorites: [],
+      favoriteStories: [],
       lastPlayed: null,
 
-      mix: { rain: 0, wind: 0, fire: 0 },
-      masterVolume: 0.85,
       customPresets: [],
 
       playSoundscape: (id) => {
@@ -243,6 +255,8 @@ export const usePlayer = create<PlayerState>()(
           starIntensity: 1,
           sequence: null,
           dawnMode: false,
+          driftMode: false,
+          driftEndsAt: null,
         });
       },
 
@@ -429,6 +443,23 @@ export const usePlayer = create<PlayerState>()(
 
       setTillDawn: (v) => set({ tillDawn: v }),
 
+      setDriftHours: (v) =>
+        set((s) => {
+          if (v === null) {
+            // switching off mid-roll: the chunk in flight finishes, then the
+            // night ends normally (driftEndsAt cleared so the next completion stops)
+            return { driftHours: null, driftMode: false, driftEndsAt: null };
+          }
+          return { driftHours: v };
+        }),
+
+      toggleFavoriteStory: (id) =>
+        set((s) => ({
+          favoriteStories: s.favoriteStories.includes(id)
+            ? s.favoriteStories.filter((f) => f !== id)
+            : [...s.favoriteStories, id],
+        })),
+
       importSequence: (raw) => {
         if (!raw || typeof raw !== "object") return false;
         const r = raw as Record<string, unknown>;
@@ -490,11 +521,13 @@ export const usePlayer = create<PlayerState>()(
         audioEngine.resetFade(); // if the final-minute fade had begun, breathe back in
         set({
           timerEndsAt: s.timerEndsAt + added * 60_000,
-          timerDuration: (s.timerDuration ?? 30) + added,
+          timerDuration: ((s.timerDuration ?? 30) + added) as TimerDuration,
           remainingSeconds: Math.max(
             0,
             Math.round((s.timerEndsAt + added * 60_000 - Date.now()) / 1000)
           ),
+          // rolling nights stretch too — the hours owe the extension
+          driftEndsAt: s.driftEndsAt ? s.driftEndsAt + added * 60_000 : null,
         });
       },
 
@@ -640,6 +673,27 @@ export const usePlayer = create<PlayerState>()(
             minutes: Math.max(minutes, s.timerDuration ?? 0),
             completed: true,
           });
+          if (s.driftHours && s.active) {
+            // drift for hours — the night renews itself: the chunk that just
+            // finished is logged (above), then the room breathes back up and
+            // rolls on until the hours run out. takes precedence over till-dawn:
+            // a rolling night already has a plan for the small hours.
+            const now = Date.now();
+            const ends = s.driftEndsAt ?? now + s.driftHours * 3_600_000;
+            if (now < ends) {
+              audioEngine.resetFade(); // breathe back up from the long fade
+              set({
+                driftMode: true,
+                driftEndsAt: ends,
+                sessionStartedAt: now, // each chunk logs its own honest minutes
+                timerEndsAt: now + (s.timerDuration ?? 30) * 60_000,
+                remainingSeconds: (s.timerDuration ?? 30) * 60,
+                isPlaying: true,
+              });
+              return;
+            }
+            // the hours have run out — fall through to the real ending below
+          }
           if (s.tillDawn && s.active) {
             // the night goes on — the room breathes back as a whisper and
             // holds until the wake light (or a hand in the dark) ends it
@@ -665,6 +719,8 @@ export const usePlayer = create<PlayerState>()(
             timerEndsAt: null,
             remainingSeconds: 0,
             starIntensity: 0.35,
+            driftMode: false,
+            driftEndsAt: null,
           });
           return;
         }
@@ -695,6 +751,8 @@ export const usePlayer = create<PlayerState>()(
         nightCap: s.nightCap,
         customSequences: s.customSequences,
         tillDawn: s.tillDawn,
+        driftHours: s.driftHours,
+        favoriteStories: s.favoriteStories,
       }),
     }
   )

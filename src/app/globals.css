@@ -342,17 +342,26 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 /* ── full-page weather (weather-layer) ─────────────────── */
+/* --wl (weather loudness) is written by weather-layer's rAF loop from the
+   live audio RMS — flakes, streaks and embers all brighten with the room */
 @keyframes weather-snow {
   0%   { transform: translate3d(0, -6vh, 0); opacity: 0; }
-  8%   { opacity: var(--o, 0.6); }
-  88%  { opacity: var(--o, 0.6); }
+  8%   { opacity: calc(var(--o, 0.6) + var(--wl, 0) * 0.35); }
+  88%  { opacity: calc(var(--o, 0.6) + var(--wl, 0) * 0.35); }
   100% { transform: translate3d(var(--wx, 30px), 104vh, 0); opacity: 0; }
 }
 @keyframes weather-rain {
   0%   { transform: translate3d(0, -16vh, 0); opacity: 0; }
-  12%  { opacity: var(--o, 0.3); }
-  92%  { opacity: var(--o, 0.3); }
+  12%  { opacity: calc(var(--o, 0.3) + var(--wl, 0) * 0.3); }
+  92%  { opacity: calc(var(--o, 0.3) + var(--wl, 0) * 0.3); }
   100% { transform: translate3d(var(--wx, 6px), 108vh, 0); opacity: 0; }
+}
+/* page-level hearth — embers climb the bottom edge while the fire is live */
+@keyframes weather-ember {
+  0%   { transform: translate3d(0, 0, 0) scale(1); opacity: 0; }
+  10%  { opacity: calc(var(--o, 0.5) + var(--wl, 0) * 0.3); }
+  60%  { opacity: calc((var(--o, 0.5) + var(--wl, 0) * 0.3) * 0.8); }
+  100% { transform: translate3d(var(--wx, 18px), -32vh, 0) scale(0.3); opacity: 0; }
 }
 
 /* ── story card shine — one slow sweep of moonlight on hover ── */
@@ -372,3 +381,5 @@ input[type="number"]::-webkit-inner-spin-button {
 }
 
 /* round-11 weather & story shine */
+
+/* wl re-emit 1788886819 */
