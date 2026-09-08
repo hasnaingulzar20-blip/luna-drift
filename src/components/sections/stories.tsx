@@ -5,6 +5,7 @@ import { BookOpenText, Pause, Play, Volume2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { STORIES, type SleepStory } from "@/lib/stories";
+import { audioEngine } from "@/lib/audio-engine";
 import { usePlayer } from "@/store/player";
 
 function StoryCard({ story }: { story: SleepStory }) {
@@ -54,6 +55,7 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     const audio = audioRef.current;
     return () => {
       audio?.pause();
+      audioEngine.setDuck(0); // never leave the bed ducked behind a closed dialog
     };
   }, []);
 
@@ -63,8 +65,13 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     if (narrating) {
       audio.pause();
       setNarrating(false);
+      audioEngine.setDuck(0);
     } else {
-      void audio.play().then(() => setNarrating(true)).catch(() => setNarrating(false));
+      void audio.play().then(() => {
+        setNarrating(true);
+        // ease the soundscape down so the voice can lean on it
+        audioEngine.setDuck(1);
+      }).catch(() => setNarrating(false));
       // a soft bed of rain under the voice, if nothing is playing yet
       if (!isPlaying) startAmbient("rain");
     }
@@ -101,7 +108,10 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       <audio
         ref={audioRef}
         src={story.narrationAudio}
-        onEnded={() => setNarrating(false)}
+        onEnded={() => {
+          setNarrating(false);
+          audioEngine.setDuck(0);
+        }}
         preload="none"
       />
 

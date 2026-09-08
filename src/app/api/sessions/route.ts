@@ -4,6 +4,29 @@ import { dayKey, ensureProfile, recalcStreak } from "@/lib/journal";
 
 const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "mix"]);
 
+/** the whole ledger, newest first — feeds the CSV export in the journal */
+export async function GET() {
+  try {
+    const profile = await ensureProfile();
+    const rows = await db.sleepSession.findMany({
+      where: { profileId: profile.id },
+      orderBy: { endedAt: "desc" },
+      take: 500,
+    });
+    return NextResponse.json({
+      sessions: rows.map((s) => ({
+        soundscape: s.soundscape,
+        minutes: s.minutes,
+        completed: s.completed,
+        endedAt: s.endedAt.toISOString(),
+      })),
+    });
+  } catch (err) {
+    console.error("GET /api/sessions failed", err);
+    return NextResponse.json({ error: "Failed to load sessions" }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);

@@ -5,6 +5,9 @@ import {
   AlarmClock,
   BellRing,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Info,
   ListMusic,
   Moon,
   Play,
@@ -271,6 +274,11 @@ export default function SleepTimer() {
                   <p className="mt-2 font-mono text-[11px] text-moon-300/90" aria-live="polite">
                     {wakeAlarm.enabled ? `armed for ${wakeAlarm.time}` : "off — sleep without a schedule"}
                   </p>
+                  <p className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-mist-600">
+                    <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                    web alarms need an open tab — leave Luna Drift resting in a background tab
+                    overnight
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="glass-chip flex items-center gap-2 rounded-full px-3 py-1.5">
@@ -500,6 +508,38 @@ export default function SleepTimer() {
                           <span className="w-5 shrink-0 text-center font-mono text-[11px] text-mist-600">
                             {i + 1}
                           </span>
+                          <div className="flex shrink-0 flex-col">
+                            <button
+                              type="button"
+                              disabled={i === 0}
+                              onClick={() =>
+                                setBuildSteps((prev) => {
+                                  const next = [...prev];
+                                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
+                                  return next;
+                                })
+                              }
+                              aria-label={`Move ${stepLabel(st.soundscape)} step ${i + 1} earlier`}
+                              className="flex h-4 w-5 items-center justify-center text-mist-600 transition hover:text-moon-200 disabled:opacity-20 disabled:hover:text-mist-600"
+                            >
+                              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              disabled={i === buildSteps.length - 1}
+                              onClick={() =>
+                                setBuildSteps((prev) => {
+                                  const next = [...prev];
+                                  [next[i + 1], next[i]] = [next[i], next[i + 1]];
+                                  return next;
+                                })
+                              }
+                              aria-label={`Move ${stepLabel(st.soundscape)} step ${i + 1} later`}
+                              className="flex h-4 w-5 items-center justify-center text-mist-600 transition hover:text-moon-200 disabled:opacity-20 disabled:hover:text-mist-600"
+                            >
+                              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+                            </button>
+                          </div>
                           <Select
                             value={st.soundscape}
                             onValueChange={(v) =>

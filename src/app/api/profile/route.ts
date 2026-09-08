@@ -6,26 +6,34 @@ export async function GET() {
   try {
     const profile = await ensureProfile();
 
-    // last 7 days, oldest → newest
+    // last 35 days, oldest → newest (feeds both the week chart and the constellation)
     const since = new Date();
     since.setHours(0, 0, 0, 0);
-    since.setDate(since.getDate() - 6);
+    since.setDate(since.getDate() - 34);
 
-    const weekSessions = await db.sleepSession.findMany({
+    const windowSessions = await db.sleepSession.findMany({
       where: { profileId: profile.id, endedAt: { gte: since } },
       select: { minutes: true, endedAt: true },
     });
 
     const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     const week: { day: string; minutes: number }[] = [];
-    for (let i = 0; i < 7; i++) {
+    const month: { date: string; day: string; minutes: number }[] = [];
+    for (let i = 0; i < 35; i++) {
       const d = new Date(since);
       d.setDate(since.getDate() + i);
       const key = dayKey(d);
-      const minutes = weekSessions
+      const minutes = windowSessions
         .filter((s) => dayKey(s.endedAt) === key)
         .reduce((sum, s) => sum + s.minutes, 0);
-      week.push({ day: dayLabels[d.getDay()], minutes });
+      if (i >= 28) {
+        week.push({ day: dayLabels[d.getDay()], minutes });
+      }
+      month.push({
+        date: d.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        day: dayLabels[d.getDay()],
+        minutes,
+      });
     }
 
     const recent = await db.sleepSession.findMany({
@@ -61,6 +69,7 @@ export async function GET() {
       streak: profile.streak,
       totalMinutes: profile.totalMinutes,
       week,
+      month,
       recent: recent.map((s) => ({
         id: s.id,
         soundscape: s.soundscape,

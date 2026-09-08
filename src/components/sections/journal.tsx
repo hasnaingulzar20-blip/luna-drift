@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock3, Download, Flame, MoonStar, Sparkles, TrendingUp } from "lucide-react";
+import { Clock3, Download, FileDown, Flame, MoonStar, Sparkles, TrendingUp } from "lucide-react";
 import { getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 import { downloadNightCard } from "@/lib/night-card";
 import DreamNotes from "./dream-notes";
@@ -26,6 +26,7 @@ interface ProfileData {
   streak: number;
   totalMinutes: number;
   week: { day: string; minutes: number }[];
+  month?: { date: string; day: string; minutes: number }[];
   recent: SessionRow[];
   insights?: InsightData;
 }
@@ -46,6 +47,36 @@ function prettyName(id: string) {
     return getSoundscape(id as SoundscapeId).name;
   } catch {
     return id;
+  }
+}
+
+/** download the whole ledger as CSV */
+async function exportLedger() {
+  try {
+    const res = await fetch("/api/sessions", { cache: "no-store" });
+    if (!res.ok) return;
+    const json = (await res.json()) as {
+      sessions: { soundscape: string; minutes: number; completed: boolean; endedAt: string }[];
+    };
+    const esc = (v: string | number | boolean) => {
+      const s = String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const lines = [
+      "date,soundscape,minutes,completed",
+      ...json.sessions.map((s) =>
+        [esc(new Date(s.endedAt).toISOString().slice(0, 16).replace("T", " ")), esc(s.soundscape), s.minutes, s.completed].join(",")
+      ),
+    ];
+    const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "luna-drift-ledger.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch {
+    /* the ledger can wait */
   }
 }
 
@@ -135,6 +166,21 @@ export default function Journal() {
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">night card</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportLedger()}
+              disabled={!data || (data.insights?.sessions ?? 0) === 0}
+              className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/12 px-4 text-xs text-mist-300 transition hover:border-moon-200/40 hover:text-moon-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Export all sessions as CSV"
+              title={
+                data && (data.insights?.sessions ?? 0) > 0
+                  ? "Download every recorded drift as a CSV ledger"
+                  : "No drifts recorded yet"
+              }
+            >
+              <FileDown className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">ledger</span>
             </button>
           </div>
         </div>
@@ -360,6 +406,96 @@ export default function Journal() {
             )}
           </div>
         </div>
+
+        {/* ── the constellation of the month ── */}
+        {data && data.month && data.month.length === 35 && (
+          <div className="glass-panel relative mt-5 overflow-hidden rounded-3xl p-6 sm:p-8">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -left-10 -top-14 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(236,226,200,0.06),transparent_70%)]"
+            />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs uppercase tracking-widest text-mist-400">
+                the last five weeks, night by night
+              </p>
+              {/* legend */}
+              <div className="flex items-center gap-4 text-[10px] text-mist-500" aria-hidden="true">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full ring-1 ring-white/25" /> silent night
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-full bg-moon-200/70" /> rested
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-3.5 w-3.5 rounded-full bg-moon-200 shadow-[0_0_10px_rgba(236,226,200,0.5)]" /> long night
+                </span>
+              </div>
+            </div>
+
+            {(() => {
+              const month = data.month;
+              const maxMonth = Math.max(30, ...month.map((d) => d.minutes));
+              const todayIdx = month.length - 1;
+              const colLabels = month.slice(0, 7).map((d) => d.day);
+              return (
+                <>
+                  <div className="mt-5 grid grid-cols-7 gap-2 sm:gap-2.5" aria-hidden="true">
+                    {colLabels.map((l) => (
+                      <span key={l} className="text-center text-[9px] uppercase tracking-[0.2em] text-mist-600">
+                        {l}
+                      </span>
+                    ))}
+                  </div>
+                  <div
+                    className="mt-2 grid grid-cols-7 gap-2 sm:gap-2.5"
+                    role="img"
+                    aria-label={`Constellation of the last five weeks: ${month.filter((d) => d.minutes > 0).length} nights with rest, brightest ${maxMonth} minutes`}
+                  >
+                    {month.map((d, i) => {
+                      const intensity = d.minutes / maxMonth;
+                      const size = d.minutes > 0 ? 5 + intensity * 10 : 5;
+                      const isToday = i === todayIdx;
+                      return (
+                        <div key={i} className="flex items-center justify-center">
+                          <span
+                            className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-700 ${
+                              isToday ? "ring-1 ring-moon-200/40" : ""
+                            }`}
+                            title={`${d.date} — ${d.minutes > 0 ? `${d.minutes} min of rest` : "a silent night"}`}
+                          >
+                            {d.minutes > 0 ? (
+                              <span
+                                className={`block rounded-full bg-moon-200 transition-all duration-700 ${isToday ? "animate-pulse" : ""}`}
+                                style={{
+                                  width: `${size}px`,
+                                  height: `${size}px`,
+                                  opacity: 0.45 + intensity * 0.55,
+                                  boxShadow: `0 0 ${4 + intensity * 14}px rgba(236,226,200,${0.25 + intensity * 0.45})`,
+                                }}
+                              />
+                            ) : (
+                              <span className="block h-1.5 w-1.5 rounded-full ring-1 ring-white/20" />
+                            )}
+                            {isToday && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute inset-0 rounded-full border border-moon-200/25"
+                              />
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="mt-4 text-[11px] leading-relaxed text-mist-500">
+                    each star is a night — the brighter it burns, the longer the drift. tonight
+                    keeps a small ring.
+                  </p>
+                </>
+              );
+            })()}
+          </div>
+        )}
 
         {/* ── dream notebook ── */}
         <DreamNotes />

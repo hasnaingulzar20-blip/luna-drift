@@ -1,14 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { getMoonPhase } from "@/lib/moon";
+import { getMoonPhase, nightsUntilFullMoon } from "@/lib/moon";
 
 export default function SiteFooter() {
   // computed lazily on first render — the phase drifts slowly enough
   // that a per-mount read is all the footer needs
   const [moon] = useState(() => {
     const p = getMoonPhase();
-    return { name: p.name, illumination: p.illumination };
+    const full = nightsUntilFullMoon();
+    return { name: p.name, illumination: p.illumination, full };
   });
 
   return (
@@ -39,6 +40,13 @@ export default function SiteFooter() {
             sleep well — the moon keeps watch
             <span className="mt-0.5 block not-italic text-mist-500" suppressHydrationWarning>
               tonight: {moon.name} · {Math.round(moon.illumination * 100)}% lit
+            </span>
+            <span className="block not-italic text-mist-600" suppressHydrationWarning>
+              {moon.full === 0
+                ? "the moon is full tonight"
+                : moon.full === 1
+                  ? "full moon tomorrow night"
+                  : `full moon in ${moon.full} nights`}
             </span>
             <span className="mt-0.5 block not-italic text-mist-600">made for quiet hours · headphones advised</span>
             <button

@@ -817,6 +817,7 @@ interface LayerState {
 export class AudioEngine {
   private ctx: AudioContext | null = null;
   private fade!: GainNode;
+  private duck!: GainNode;
   private master!: GainNode;
   private analyser: AnalyserNode | null = null;
   private analyserData: Uint8Array<ArrayBuffer> | null = null;
@@ -843,6 +844,8 @@ export class AudioEngine {
       this.ctx = new AC();
       this.fade = this.ctx.createGain();
       this.fade.gain.value = 1;
+      this.duck = this.ctx.createGain();
+      this.duck.gain.value = 1;
       this.master = this.ctx.createGain();
       this.master.gain.value = this.masterVolume;
       this.analyser = this.ctx.createAnalyser();
@@ -853,7 +856,7 @@ export class AudioEngine {
       comp.threshold.value = -20;
       comp.knee.value = 18;
       comp.ratio.value = 4;
-      this.fade.connect(this.master).connect(comp).connect(this.ctx.destination);
+      this.fade.connect(this.duck).connect(this.master).connect(comp).connect(this.ctx.destination);
       this.master.connect(this.analyser);
     }
     if (this.ctx.state === "suspended") void this.ctx.resume();
@@ -936,6 +939,13 @@ export class AudioEngine {
     if (!this.ctx) return;
     const clamped = Math.max(0.0001, Math.min(1, f));
     this.fade.gain.setTargetAtTime(clamped, this.ctx.currentTime, rampSeconds / 3);
+  }
+
+  /** duck the bed under a narrated voice — 0 = full, 1 = eased to a quarter */
+  setDuck(amount: number, rampSeconds = 1.4) {
+    if (!this.ctx) return;
+    const clamped = Math.max(0, Math.min(1, amount));
+    this.duck.gain.setTargetAtTime(1 - clamped * 0.75, this.ctx.currentTime, rampSeconds / 3);
   }
 
   resetFade() {

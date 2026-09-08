@@ -37,3 +37,10 @@ export function getMoonPhase(date: Date = new Date()): MoonPhaseInfo {
                   : "waning crescent";
   return { phase, illumination, name };
 }
+
+/** nights from now until the next full moon (0 = full tonight) */
+export function nightsUntilFullMoon(date: Date = new Date()): number {
+  const { phase } = getMoonPhase(date);
+  const fractionToFull = (((0.5 - phase) % 1) + 1) % 1;
+  return Math.round(fractionToFull * SYNODIC);
+}

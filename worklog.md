@@ -135,3 +135,23 @@ Stage Summary:
 - App now: 7 soundscapes · mixer w/ presets + share links + import/export + trims · 3 narrated stories · 4-7-8 breathing w/ haptics · timer + last bell + wake light · WIND-DOWN SEQUENCES (premade + custom, auto-handover to silence, journal-logged) · journal w/ sparkline/insights/night-card · dream notebook · shortcuts dialog · moon-phase footer · PWA manifest.
 - Verified round 5 features fully working in browser; no known bugs; all test residue cleaned.
 - Next-phase recommendations: PWA offline shell (service worker) + session restore on reopen; per-night mood tagging on journal (needs Prisma model + dev-server restart for fresh client); sequence step reordering (drag) + silence-first sequences; dream notebook image attachments; weekly digest email/export; alarm-open-tab reliability note in wake-light card; constellation-style journal heatmap (month view).
+
+---
+
+Task ID: 6
+Agent: main (Z.ai Code) — cron webDevReview round 6
+Task: Status assessment + QA + narration ducking, month constellation heatmap, sessions CSV ledger, builder reorder, styling detail pass
+
+Work Log:
+- [Assessment] Worklog reviewed (5 prior rounds); server 200, zero console errors, all sections + images healthy (3 story covers initially "broken" = lazy-load below fold — load fine after scroll), playback regression ✅, data clean. No bugs → feature round.
+- [Feature] Narration ducking: audio-engine gained a `duck` GainNode in the signal chain (layers → fade → duck → master → comp → destination) + `setDuck(amount, ramp)` (1 = bed eased to 25 %, 1.4 s ramp). stories.tsx ducks on narration play, restores on pause/ended/dialog-close (unmount cleanup included). Chime stays post-duck so the last bell is never dimmed. Headless note: AudioContext is suspended in QA (no audio hw) so ducking is audible only in real browsers — code paths verified error-free.
+- [Feature] Month constellation heatmap: GET /api/profile now also returns `month` (35 days: {date "Sep 8", day, minutes}; single window query feeds both week + month — one query replacing two). Journal renders "the last five weeks, night by night": 7-col grid with weekday header, each night a star — hollow ring dot for silent nights, moon-glow disc sized/brightened by minutes (glow 4→18 px, opacity 0.45→1), today pulsing with a ring; 3-dot legend (silent / rested / long night); aria-label summarizes nights-with-rest. Verified with 6 seeded sessions across the month (Aug 11 → today): 6 stars of correct sizes, today ringed, mobile 390 px clean.
+- [Feature] CSV ledger export: new GET /api/sessions (up to 500 sessions, newest first); journal header gains a "ledger" button next to night card → fetch + client-side CSV (header row, BOM for Excel, proper quote escaping, `luna-drift-ledger.csv`). Disabled at 0 sessions. Verified: API returns rows, button click downloads without console errors.
+- [Feature] Builder step reorder: chevron up/down buttons per step row in the sequence builder (swap-in-place, disabled at the ends, aria-labels "Move X step n earlier/later"). Verified reordering both directions in the live builder.
+- [Styling] Footer adds a moon-countdown line via new `nightsUntilFullMoon()` in src/lib/moon.ts ("full moon in 18 nights" / "tomorrow night" / "full tonight"). Wake-light card gained an honest reliability note: "web alarms need an open tab — leave Luna Drift resting in a background tab overnight" (Info icon, mist-600). Constellation legend + ring affordance are part of the new panel. scripts/seed-month.mts kept as a QA helper (seeds month-spread sessions).
+- [QA residue cleanup] 6 seeded sessions deleted, profile stats reset (clean-db script). Empty-state verified: constellation still renders (35 hollow dots), ledger disabled. Console 0 errors/warnings, lint clean.
+
+Stage Summary:
+- Journal is now a real night-sky diary: week bars + trend line + month constellation + insights + night card + CSV ledger. Narration no longer fights the soundscape (auto-ducking). Sequences are reorderable. Footer tells you when the full moon returns.
+- All round-6 features browser-verified; no known bugs; test data cleaned.
+- Next-phase recommendations: PWA offline shell (service worker) — decided against this round because dev-mode SW caching would serve stale HTML in the preview panel; revisit only for production builds; per-night mood tagging (Prisma model + server restart needed); sequence step reordering done → next: silence-first validation + step duration presets; dream notebook image attachments; constellation month navigation (swipe months back); weekly digest share text.
