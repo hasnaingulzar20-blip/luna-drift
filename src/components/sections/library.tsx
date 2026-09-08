@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Pause, Play, Star } from "lucide-react";
+import { Dices, Pause, Play, Star } from "lucide-react";
 import { SOUNDSCAPES, getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 import { usePlayer } from "@/store/player";
 import { EqualizerBars } from "./site-header";
@@ -17,6 +17,17 @@ export default function Library() {
   const toggleFavorite = usePlayer((s) => s.toggleFavorite);
   const [hovered, setHovered] = useState<SoundscapeId | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
+  const [surprised, setSurprised] = useState(false);
+
+  // a stranger room, chosen kindly: never the one already playing
+  const surprise = () => {
+    const s = usePlayer.getState();
+    const pool = SOUNDSCAPES.filter((sc) => sc.id !== s.active);
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    s.playSoundscape(pick.id);
+    setSurprised(true);
+    window.setTimeout(() => setSurprised(false), 2400);
+  };
 
   const visible = useMemo(
     () =>
@@ -36,16 +47,30 @@ export default function Library() {
               <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>The Library
             </p>
             <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
-              Eight rooms of quiet
+              Nine rooms of quiet
             </h2>
           </div>
 
-          {/* filter chips */}
-          <div
-            role="tablist"
-            aria-label="Filter soundscapes"
-            className="flex items-center gap-1.5 rounded-full bg-white/[0.03] p-1 ring-1 ring-white/8"
-          >
+          {/* surprise + filter chips */}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={surprise}
+              aria-label="Let the night choose a room for you"
+              title="let the night choose"
+              className="group flex h-9 items-center gap-2 rounded-full border border-dashed border-moon-200/25 px-4 text-xs text-mist-300 transition hover:border-moon-200/50 hover:bg-moon-200/10 hover:text-moon-100"
+            >
+              <Dices
+                className="h-3.5 w-3.5 transition-transform duration-500 group-hover:rotate-180"
+                aria-hidden="true"
+              />
+              {surprised ? "the night chose…" : "surprise me"}
+            </button>
+            <div
+              role="tablist"
+              aria-label="Filter soundscapes"
+              className="flex items-center gap-1.5 rounded-full bg-white/[0.03] p-1 ring-1 ring-white/8"
+            >
             {(
               [
                 { key: "all" as Filter, label: "All rooms" },
@@ -83,6 +108,7 @@ export default function Library() {
                 </button>
               );
             })}
+            </div>
           </div>
         </div>
 

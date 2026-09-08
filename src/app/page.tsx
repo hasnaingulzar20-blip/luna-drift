@@ -10,6 +10,7 @@ import WakeLight from "@/components/atmosphere/wake-light";
 import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
 import IntroCurtain from "@/components/atmosphere/intro-curtain";
+import RestoreChip from "@/components/atmosphere/restore-chip";
 import SharedMixBanner from "@/components/atmosphere/shared-mix";
 import SharedSequenceBanner from "@/components/atmosphere/shared-sequence";
 import SiteHeader from "@/components/sections/site-header";
@@ -46,7 +47,7 @@ export default function Home() {
     }
   }, [immersive]);
 
-  // keyboard shortcuts: space = play/pause · 1–8 = soundscapes · m = immersion
+  // keyboard shortcuts: space = play/pause · 1–9 = soundscapes · m = immersion
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -66,7 +67,7 @@ export default function Home() {
         else s.playSoundscape(s.active ?? TONIGHTS_PICK);
       } else if (e.key.toLowerCase() === "m" && !e.repeat) {
         s.toggleImmersive();
-      } else if (/^[1-8]$/.test(e.key) && !e.repeat) {
+      } else if (/^[1-9]$/.test(e.key) && !e.repeat) {
         const sc = SOUNDSCAPES[Number(e.key) - 1];
         if (sc) s.playSoundscape(sc.id);
       }
@@ -124,6 +125,9 @@ export default function Home() {
 
       {/* the entrance, once per visit */}
       <IntroCurtain />
+
+      {/* an interrupted drift, offering to continue */}
+      <RestoreChip />
 
       {/* a mix that drifted in with the link */}
       <SharedMixBanner />

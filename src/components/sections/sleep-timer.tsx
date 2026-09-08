@@ -131,6 +131,7 @@ export default function SleepTimer() {
   const setTillDawn = usePlayer((s) => s.setTillDawn);
   const dawnMode = usePlayer((s) => s.dawnMode);
   const stopAll = usePlayer((s) => s.stopAll);
+  const extendTimer = usePlayer((s) => s.extendTimer);
 
   /* builder state */
   const [building, setBuilding] = useState(false);
@@ -218,6 +219,17 @@ export default function SleepTimer() {
                     </button>
                   );
                 })}
+                {timerDuration !== null && (
+                  <button
+                    type="button"
+                    onClick={() => extendTimer(15)}
+                    className="flex h-14 items-center gap-2 rounded-2xl bg-moon-200/[0.07] px-5 text-sm text-moon-100 ring-1 ring-moon-200/25 transition hover:bg-moon-200/15 hover:ring-moon-200/45"
+                    aria-label="Give tonight fifteen more minutes"
+                    title="the drift runs fifteen minutes longer"
+                  >
+                    <Plus className="h-3.5 w-3.5" aria-hidden="true" /> 15 min
+                  </button>
+                )}
                 {timerDuration !== null && (
                   <button
                     type="button"

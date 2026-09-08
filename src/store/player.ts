@@ -123,6 +123,8 @@ interface PlayerState {
   checkWake: () => void;
   setChimeOnEnd: (v: boolean) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
+  /** push the running timer's end later by extra minutes (default 15) */
+  extendTimer: (extra?: number) => void;
   cancelTimer: () => void;
   setTillDawn: (v: boolean) => void;
   /** validate a sequence that arrived from a share link; true when it joined the shelf */
@@ -467,6 +469,21 @@ export const usePlayer = create<PlayerState>()(
           remainingSeconds: minutes * 60,
           sequence: null, // the timer takes over the ending
           dawnMode: false,
+        });
+      },
+
+      extendTimer: (extra = 15) => {
+        const s = get();
+        if (!s.timerEndsAt) return;
+        const added = Math.max(1, Math.round(extra));
+        audioEngine.resetFade(); // if the final-minute fade had begun, breathe back in
+        set({
+          timerEndsAt: s.timerEndsAt + added * 60_000,
+          timerDuration: (s.timerDuration ?? 30) + added,
+          remainingSeconds: Math.max(
+            0,
+            Math.round((s.timerEndsAt + added * 60_000 - Date.now()) / 1000)
+          ),
         });
       },
 

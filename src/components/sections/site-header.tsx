@@ -43,13 +43,7 @@ export default function SiteHeader() {
   const wakeAlarm = usePlayer((s) => s.wakeAlarm);
   const dawnMode = usePlayer((s) => s.dawnMode);
   const [scrolled, setScrolled] = useState(false);
-
-  useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 32);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   const nav = [
     { href: "#tonight", label: "Tonight" },
@@ -60,6 +54,33 @@ export default function SiteHeader() {
     { href: "#timer", label: "Timer" },
     { href: "#journal", label: "Journal" },
   ];
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 32);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  // the section drifting through the middle of the screen lights its nav link
+  useEffect(() => {
+    if (typeof IntersectionObserver === "undefined") return;
+    const sections = nav
+      .map((n) => document.getElementById(n.href.slice(1)))
+      .filter((el): el is HTMLElement => !!el);
+    if (sections.length === 0) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) setActiveSection(visible[0].target.id);
+      },
+      { rootMargin: "-30% 0px -60% 0px", threshold: 0 }
+    );
+    sections.forEach((s) => obs.observe(s));
+    return () => obs.disconnect();
+  }, []);
 
   return (
     <header className="fixed inset-x-0 top-0 z-40">
@@ -80,15 +101,27 @@ export default function SiteHeader() {
         </a>
 
         <nav aria-label="Sections" className="hidden items-center gap-1 md:flex">
-          {nav.map((n) => (
-            <a
-              key={n.href}
-              href={n.href}
-              className="rounded-full px-3 py-1.5 text-[13px] text-mist-300 transition hover:bg-moon-200/8 hover:text-moon-100"
-            >
-              {n.label}
-            </a>
-          ))}
+          {nav.map((n) => {
+            const isActive = activeSection === n.href.slice(1);
+            return (
+              <a
+                key={n.href}
+                href={n.href}
+                aria-current={isActive ? "true" : undefined}
+                className={`relative rounded-full px-3 py-1.5 text-[13px] transition-all duration-300 hover:bg-moon-200/8 hover:text-moon-100 ${
+                  isActive ? "bg-moon-200/10 text-moon-100" : "text-mist-300"
+                }`}
+              >
+                {n.label}
+                <span
+                  aria-hidden="true"
+                  className={`absolute -bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-moon-200 transition-all duration-500 ${
+                    isActive ? "opacity-90 shadow-[0_0_8px_rgba(236,226,200,0.9)]" : "opacity-0"
+                  }`}
+                />
+              </a>
+            );
+          })}
         </nav>
 
         <div className="flex items-center gap-2">

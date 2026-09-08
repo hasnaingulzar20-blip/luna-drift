@@ -14,7 +14,8 @@ export type SoundscapeId =
   | "fireplace"
   | "piano"
   | "train"
-  | "bowls";
+  | "bowls"
+  | "snow";
 
 export type MixLayerId = "rain" | "wind" | "fire";
 
@@ -898,6 +899,120 @@ const buildBowls: Builder = (ctx, out) => {
   };
 };
 
+/**
+ * Snowfall — the world wrapped in a blanket.
+ * A deep muffled hush (everything high is absorbed), slow wind leaning on
+ * the house, the occasional soft whump of snow letting go of a roof, and
+ * — very rarely — a tiny icy tick, like a crystal settling on the pane.
+ */
+const buildSnow: Builder = (ctx, out) => {
+  const timers = new Timers();
+  const s: Sources = { nodes: [] };
+
+  // the hush itself: brown noise behind a thick felt blanket
+  const hush = noiseSource(ctx, s, "brown");
+  const hushLp = ctx.createBiquadFilter();
+  hushLp.type = "lowpass";
+  hushLp.frequency.value = 380;
+  const hushGain = ctx.createGain();
+  hushGain.gain.value = 0.14;
+  hush.connect(hushLp).connect(hushGain).connect(out);
+  // the blanket itself breathes, very slowly
+  const hushLfo = ctx.createOscillator();
+  hushLfo.frequency.value = rnd(0.045, 0.07);
+  const hushLfoAmt = ctx.createGain();
+  hushLfoAmt.gain.value = 0.035;
+  hushLfo.connect(hushLfoAmt).connect(hushGain.gain);
+  hushLfo.start();
+  s.nodes.push(hushLfo);
+
+  // wind leaning on the walls — band-passed pink noise with a wandering center
+  const wind = noiseSource(ctx, s, "pink");
+  const windBp = ctx.createBiquadFilter();
+  windBp.type = "bandpass";
+  windBp.frequency.value = 300;
+  windBp.Q.value = 0.7;
+  const windGain = ctx.createGain();
+  windGain.gain.value = 0.03;
+  const windPan = ctx.createStereoPanner();
+  wind.connect(windBp).connect(windGain).connect(windPan).connect(out);
+  const windWander = ctx.createOscillator();
+  windWander.frequency.value = 0.05;
+  const windWanderAmt = ctx.createGain();
+  windWanderAmt.gain.value = 140;
+  windWander.connect(windWanderAmt).connect(windBp.frequency);
+  windWander.start();
+  s.nodes.push(windWander);
+
+  // gusts: the wind swells, leans from one side, then gives up
+  const gust = () => {
+    const t = ctx.currentTime;
+    const peak = rnd(0.035, 0.085);
+    const rise = rnd(2.2, 4.5);
+    const fall = rnd(4, 8);
+    windGain.gain.cancelScheduledValues(t);
+    windGain.gain.setTargetAtTime(peak, t, rise / 3);
+    windGain.gain.setTargetAtTime(0.012, t + rise, fall / 3);
+    windPan.pan.setTargetAtTime(rnd(-0.6, 0.6), t, rise / 2);
+    timers.after(rnd(14000, 26000), gust);
+  };
+  timers.after(rnd(2500, 6000), gust);
+
+  // snow letting go of the roof — a soft, rounded whump
+  const whump = () => {
+    burst(ctx, out, {
+      kind: "brown",
+      filter: { type: "lowpass", freq: rnd(180, 320) },
+      gain: rnd(0.10, 0.16),
+      attack: 0.22,
+      decay: rnd(0.9, 1.6),
+    });
+    // sometimes a second, smaller sigh from the far eave
+    if (Math.random() < 0.35) {
+      timers.after(rnd(700, 1600), () =>
+        burst(ctx, out, {
+          kind: "brown",
+          filter: { type: "lowpass", freq: rnd(140, 260) },
+          gain: rnd(0.05, 0.08),
+          attack: 0.3,
+          decay: rnd(0.8, 1.3),
+        })
+      );
+    }
+    timers.after(rnd(20000, 46000), whump);
+  };
+  timers.after(rnd(9000, 18000), whump);
+
+  // a rare icy tick — a crystal settling on the cold pane
+  const tickle = () => {
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = rnd(-0.8, 0.8);
+    pan.connect(out);
+    tone(ctx, pan, {
+      type: "sine",
+      freq: rnd(1900, 3400),
+      gain: rnd(0.012, 0.022),
+      decay: rnd(0.25, 0.6),
+    });
+    timers.after(1200, () => {
+      try {
+        pan.disconnect();
+      } catch { /* noop */ }
+    });
+    timers.after(rnd(17000, 40000), tickle);
+  };
+  timers.after(rnd(12000, 26000), tickle);
+
+  return () => {
+    timers.dispose();
+    s.nodes.forEach((n) => {
+      try {
+        n.stop();
+      } catch { /* noop */ }
+    });
+  };
+};
+
 const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   rain: buildRain,
   forest: buildForest,
@@ -907,6 +1022,7 @@ const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   piano: buildPiano,
   train: buildTrain,
   bowls: buildBowls,
+  snow: buildSnow,
 };
 
 const MIX_BUILDERS: Record<MixLayerId, Builder> = {

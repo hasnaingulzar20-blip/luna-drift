@@ -12,7 +12,7 @@ import {
 
 const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ["Space"], label: "Play or pause tonight's drift" },
-  { keys: ["1", "…", "8"], label: "Drift straight into a soundscape" },
+  { keys: ["1", "…", "9"], label: "Drift straight into a soundscape" },
   { keys: ["M"], label: "Immersive mode — the sky alone" },
   { keys: ["Esc"], label: "Return from immersion, close panels" },
   { keys: ["?"], label: "This little guide" },

@@ -6,7 +6,8 @@ export type SoundscapeId =
   | "fireplace"
   | "piano"
   | "train"
-  | "bowls";
+  | "bowls"
+  | "snow";
 
 export interface Soundscape {
   id: SoundscapeId;
@@ -127,6 +128,19 @@ export const SOUNDSCAPES: Soundscape[] = [
     hue: "#d4b98c",
     glow: "rgba(212,185,140,0.3)",
     image: "/images/sc-bowls.png",
+  },
+  {
+    id: "snow",
+    name: "Snowfall",
+    tagline: "Deep hush & slow gusts",
+    description:
+      "Snow coming down through the dark, and the whole world going quiet under it. The wind leans on the walls, a roof sheds its white weight with a soft whump, and everything high and sharp is absorbed.",
+    duration: "90 min",
+    bpmHint: "looping",
+    notes: ["deep hush", "wind gusts", "settling snow"],
+    hue: "#aebfd8",
+    glow: "rgba(174,191,216,0.3)",
+    image: "/images/sc-snow.png",
   },
 ];
 
