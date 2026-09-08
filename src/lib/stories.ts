@@ -88,6 +88,25 @@ export const STORIES: SleepStory[] = [
       "By the time the lamplight goes pale, the map is dry. She rolls it, ties it with gray string, and sets it by the door for whoever needed it most tonight. Then she washes the brush, banks the lamp, and stands a while in the doorway listening to her own handiwork go by — the slow water, taking its time, carrying the town toward morning without waking a single soul.",
     ],
   },
+  {
+    id: "ferry",
+    title: "The Night Ferry to Elsewhere",
+    narrator: "Jam · slow British narration",
+    minutes: 33,
+    theme: "Calm sea · lantern islands · slow crossing",
+    cover: "/images/story-ferry.png",
+    narrationAudio: "/narration/story-ferry.wav",
+    excerpt:
+      "The last ferry leaves from the quiet pier at half past ten, and it carries no commuters — only sleepers, wrapped in wool blankets, going wherever the water decides.",
+    body: [
+      "The last ferry leaves from the quiet pier at half past ten, and it carries no commuters — only sleepers, wrapped in wool blankets, going wherever the water decides. Nobody checks tickets. The only fare is the day you hand over at the gangway, and the ferryman stacks the days neatly under his lantern, to be returned lighter by morning.",
+      "The deck is made of wood that has been walked soft by a thousand slow crossings. Deck chairs face the stern, so the wake becomes the evening's only entertainment: a long silver ribbon unspooling across the black water, closing gently behind you, which is the sea's way of saying that today is taken care of.",
+      "Somewhere below, the engine hums a note too low to name — felt in the floorboards more than heard, the steady bass of being carried. The tea urn sighs in its little cabin. Steam drifts past the porthole glass, and the whole boat smells faintly of wool, of engine oil, of tea left steeping a minute too long, which is exactly how the regulars like it.",
+      "Out in the dark, islands pass with a single lantern lit apiece. The ferry does not stop for them; it only dips its horn, once, softly — hello, sleep well — and the lanterns wink back the way streetlights do, one at a time, unhurried. You will never learn their names. They are not for knowing. They are for passing, warmly, at four knots.",
+      "The ferryman comes by with blankets folded in thirds, and you take one without opening your eyes all the way. The wool is heavy in the way that means stay. A chair accepts you. The rail is cool where your hand finds it. Above the mast, the sky has been hung with stars, and the mast light burns among them, and for a while it is impossible to say which stars are yours.",
+      "The crossing takes all night, or no time at all — the ferry is not strict about it. The water keeps its one long vowel. The engine keeps its low kind note. And the last thing the night asks of you, quietly, at the rail of a slow boat going elsewhere, is nothing. It asks nothing at all. Sleep now. The ferryman has the watch.",
+    ],
+  },
 ];
 
 export const getStory = (id: string) => STORIES.find((s) => s.id === id);

@@ -1,7 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getMoonPhase, nightsUntilFullMoon } from "@/lib/moon";
+
+/**
+ * A tiny CSS moon that shows tonight's actual phase — a lit disc with a
+ * shadow disc sliding across it. Crude astronomy, honest silhouette.
+ * The shadow is placed by direct DOM write after mount: phase math differs
+ * by float dust between server and client, and hydration must never have
+ * to fight over a style attribute.
+ */
+function MoonDisc({ illumination, waxing }: { illumination: number; waxing: boolean }) {
+  const shadowRef = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const el = shadowRef.current;
+    if (!el) return;
+    const d = Math.round((1 - illumination) * 200); // % of the disc to slide the shadow
+    el.style.transform = `translateX(${waxing ? -d : d}%)`;
+    el.style.opacity = "1";
+  }, [illumination, waxing]);
+  return (
+    <span
+      aria-hidden="true"
+      className="relative mt-0.5 inline-block h-[18px] w-[18px] shrink-0 overflow-hidden rounded-full bg-moon-100/90 shadow-[0_0_9px_rgba(236,226,200,0.45)]"
+    >
+      <span
+        ref={shadowRef}
+        className="absolute inset-0 rounded-full opacity-0 transition-[transform,opacity] duration-700"
+        style={{
+          background:
+            "radial-gradient(circle at 35% 35%, rgba(10,14,28,0.96), rgba(6,9,20,1))",
+        }}
+      />
+    </span>
+  );
+}
 
 export default function SiteFooter() {
   // computed lazily on first render — the phase drifts slowly enough
@@ -9,7 +42,7 @@ export default function SiteFooter() {
   const [moon] = useState(() => {
     const p = getMoonPhase();
     const full = nightsUntilFullMoon();
-    return { name: p.name, illumination: p.illumination, full };
+    return { name: p.name, illumination: p.illumination, full, waxing: p.phase < 0.5 };
   });
 
   return (
@@ -38,7 +71,8 @@ export default function SiteFooter() {
 
           <p className="text-center text-[11px] italic leading-relaxed text-mist-500">
             sleep well — the moon keeps watch
-            <span className="mt-0.5 block not-italic text-mist-500" suppressHydrationWarning>
+            <span className="mt-0.5 flex items-center justify-center gap-1.5 not-italic text-mist-500" suppressHydrationWarning>
+              <MoonDisc illumination={moon.illumination} waxing={moon.waxing} />
               tonight: {moon.name} · {Math.round(moon.illumination * 100)}% lit
             </span>
             <span className="block not-italic text-mist-600" suppressHydrationWarning>
@@ -54,7 +88,7 @@ export default function SiteFooter() {
               onClick={() => window.dispatchEvent(new CustomEvent("luna:show-shortcuts"))}
               className="mt-1 block font-mono text-[10px] not-italic tracking-wide text-mist-600/80 underline decoration-mist-700/60 underline-offset-4 transition hover:text-moon-300 hover:decoration-moon-300/50"
             >
-              space play/pause · 1–7 soundscapes · m immersion · ? all keys
+              space play/pause · 1–9 soundscapes · m immersion · ? all keys
             </button>
           </p>
         </div>

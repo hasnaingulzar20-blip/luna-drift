@@ -11,6 +11,9 @@ import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
 import IntroCurtain from "@/components/atmosphere/intro-curtain";
 import RestoreChip from "@/components/atmosphere/restore-chip";
+import WeatherLayer from "@/components/atmosphere/weather-layer";
+import WakeWindowNudge from "@/components/atmosphere/wake-window-nudge";
+import NightCapHint from "@/components/atmosphere/night-cap-hint";
 import SharedMixBanner from "@/components/atmosphere/shared-mix";
 import SharedSequenceBanner from "@/components/atmosphere/shared-sequence";
 import SiteHeader from "@/components/sections/site-header";
@@ -81,6 +84,7 @@ export default function Home() {
       {/* ── the night sky (always visible) ── */}
       <Starfield />
       <MoonArc />
+      <WeatherLayer />
       <CursorTrail />
       <TimerTicker />
       <MediaSessionBridge />
@@ -128,6 +132,12 @@ export default function Home() {
 
       {/* an interrupted drift, offering to continue */}
       <RestoreChip />
+
+      {/* the usual drift hour, honored when it returns */}
+      <WakeWindowNudge />
+
+      {/* late hours deserve gentle louds */}
+      <NightCapHint />
 
       {/* a mix that drifted in with the link */}
       <SharedMixBanner />

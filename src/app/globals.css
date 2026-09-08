@@ -340,3 +340,35 @@ input[type="number"]::-webkit-inner-spin-button {
     transform: scale(0.98);
   }
 }
+
+/* ── full-page weather (weather-layer) ─────────────────── */
+@keyframes weather-snow {
+  0%   { transform: translate3d(0, -6vh, 0); opacity: 0; }
+  8%   { opacity: var(--o, 0.6); }
+  88%  { opacity: var(--o, 0.6); }
+  100% { transform: translate3d(var(--wx, 30px), 104vh, 0); opacity: 0; }
+}
+@keyframes weather-rain {
+  0%   { transform: translate3d(0, -16vh, 0); opacity: 0; }
+  12%  { opacity: var(--o, 0.3); }
+  92%  { opacity: var(--o, 0.3); }
+  100% { transform: translate3d(var(--wx, 6px), 108vh, 0); opacity: 0; }
+}
+
+/* ── story card shine — one slow sweep of moonlight on hover ── */
+@keyframes shine-sweep {
+  from { transform: translateX(-160%) rotate(12deg); }
+  to   { transform: translateX(360%) rotate(12deg); }
+}
+.story-shine {
+  opacity: 0;
+}
+.group:hover .story-shine,
+.group:focus-within .story-shine {
+  animation: shine-sweep 1.5s cubic-bezier(0.3, 0.6, 0.4, 1) 0.08s both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-shine { display: none; }
+}
+
+/* round-11 weather & story shine */
