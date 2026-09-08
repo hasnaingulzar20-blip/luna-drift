@@ -69,6 +69,25 @@ export const STORIES: SleepStory[] = [
       "The gardener passes and does not ask your name. In the cloud garden, no one has to be anyone. You are simply the warmest shape on the bench. The moonflowers lean a half-degree closer. The stars soak their feet. And somewhere very far below, the ordinary weather carries on without you, politely holding your place until morning.",
     ],
   },
+  {
+    id: "cartographer",
+    title: "The Mapmaker of Slow Rivers",
+    narrator: "Jam · slow British narration",
+    minutes: 35,
+    theme: "Maps · lantern light · unhurried water",
+    cover: "/images/story-cartographer.png",
+    narrationAudio: "/narration/story-cartographer.wav",
+    excerpt:
+      "At the end of Lantern Row there is a shop that opens only after dark, where a mapmaker draws the slow rivers — the wide, quiet waters that carry a town's worries out toward morning.",
+    body: [
+      "At the end of Lantern Row there is a shop that opens only after dark. Its sign is a small painted river, and beneath the window, in letters gone soft with weather, it says: Maps of Slow Rivers, Drawn While You Wait. Nobody has ever been kept waiting. That is rather the point.",
+      "The mapmaker works by lamplight at a desk of worn oak, with a pot of ink the color of a closed eye. She draws the slow rivers — the ones that appear only at night, wide and quiet, running through every town that ever needed one. By morning they have folded themselves back into the ordinary land, leaving the streets dry and the sleepers rested.",
+      "Her rivers are never straight. A straight river, she says, is in a hurry, and a river in a hurry wakes people up. So each one she draws leans into its curves the way a sleeper turns into a cool pillow: a long bend to carry the day's arguments, a shallow stretch where the unfinished thoughts settle like silt, an oxbow where anything unsaid can rest for a while and decide, gently, whether it ever needs saying.",
+      "Tonight there is a traveler at the door, coat heavy with the day. She does not ask what happened. She inks the far bank, sets down a small paper boat, and slides the map across the desk. Set yourself anywhere, she says. The current does the rest. The traveler steps onto the paper as onto a landing stage, and the river takes the coat's weight first, then, kindly, the rest.",
+      "What the rivers carry, no one quite knows. The mapmaker has her suspicions — she has watched whole seasons drift under the little bridge on sheet eleven: examinations, arguments, the ninth unread letter, a harvest that fell short, a chair at a table now pulled in. All of it moving at walking-at-most speed, all of it arriving somewhere seaward and being folded into the salt, which has room for everything.",
+      "By the time the lamplight goes pale, the map is dry. She rolls it, ties it with gray string, and sets it by the door for whoever needed it most tonight. Then she washes the brush, banks the lamp, and stands a while in the doorway listening to her own handiwork go by — the slow water, taking its time, carrying the town toward morning without waking a single soul.",
+    ],
+  },
 ];
 
 export const getStory = (id: string) => STORIES.find((s) => s.id === id);

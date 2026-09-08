@@ -60,9 +60,28 @@ export async function GET(req: Request) {
       db.sleepSession.count({ where: { profileId: profile.id } }),
       db.sleepSession.findMany({
         where: { profileId: profile.id },
-        select: { soundscape: true, minutes: true },
+        select: { soundscape: true, minutes: true, endedAt: true },
       }),
     ]);
+
+    // ── night rhythm: which hours of the day actually hold the listening ──
+    // each session's minutes are spread across the hours it spanned,
+    // so a 45-minute drift ending 23:30 lights 22:00 and 23:00 alike
+    const nightHours: number[] = Array.from({ length: 24 }, () => 0);
+    for (const s of allTime) {
+      const endMs = s.endedAt.getTime();
+      const startMs = endMs - s.minutes * 60_000;
+      let cursor = startMs;
+      while (cursor < endMs) {
+        const d = new Date(cursor);
+        const hourEnd = new Date(d);
+        hourEnd.setMinutes(60, 0, 0);
+        const overlapEnd = Math.min(endMs, hourEnd.getTime());
+        nightHours[d.getHours()] += (overlapEnd - cursor) / 60_000;
+        cursor = overlapEnd;
+      }
+    }
+    for (let h = 0; h < 24; h++) nightHours[h] = Math.round(nightHours[h]);
 
     const avgMinutes = sessionCount
       ? Math.round(allTime.reduce((sum, s) => sum + s.minutes, 0) / sessionCount)
@@ -98,6 +117,7 @@ export async function GET(req: Request) {
         topSoundscape: topEntry ? topEntry[0] : null,
         topSoundscapeMinutes: topEntry ? topEntry[1] : 0,
       },
+      nightHours,
     });
   } catch (err) {
     console.error("GET /api/profile failed", err);

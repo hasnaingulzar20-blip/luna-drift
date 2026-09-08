@@ -148,7 +148,7 @@ export default function Stories() {
           </p>
         </div>
 
-        <div className="mt-9 grid gap-5 md:grid-cols-3">
+        <div className="mt-9 grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {STORIES.map((s) => (
             <StoryCard key={s.id} story={s} />
           ))}

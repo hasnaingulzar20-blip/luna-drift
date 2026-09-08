@@ -89,6 +89,9 @@ interface PlayerState {
   /* the last bell */
   chimeOnEnd: boolean;
 
+  /* night cap — gentle loudness ceiling */
+  nightCap: boolean;
+
   /* drift till dawn */
   tillDawn: boolean; // preference: after the timer, keep a whisper going
   dawnMode: boolean; // live: the room is whispering until morning right now
@@ -122,6 +125,7 @@ interface PlayerState {
   dismissWake: () => void;
   checkWake: () => void;
   setChimeOnEnd: (v: boolean) => void;
+  setNightCap: (v: boolean) => void;
   startTimer: (minutes: Exclude<TimerDuration, null>) => void;
   /** push the running timer's end later by extra minutes (default 15) */
   extendTimer: (extra?: number) => void;
@@ -170,6 +174,8 @@ export const usePlayer = create<PlayerState>()(
       waking: false,
 
       chimeOnEnd: true,
+
+      nightCap: false,
 
       tillDawn: false,
       dawnMode: false,
@@ -415,6 +421,11 @@ export const usePlayer = create<PlayerState>()(
       },
 
       setChimeOnEnd: (v) => set({ chimeOnEnd: v }),
+
+      setNightCap: (v) => {
+        set({ nightCap: v });
+        audioEngine.setNightCap(v);
+      },
 
       setTillDawn: (v) => set({ tillDawn: v }),
 
@@ -681,6 +692,7 @@ export const usePlayer = create<PlayerState>()(
         trims: s.trims,
         wakeAlarm: s.wakeAlarm,
         chimeOnEnd: s.chimeOnEnd,
+        nightCap: s.nightCap,
         customSequences: s.customSequences,
         tillDawn: s.tillDawn,
       }),

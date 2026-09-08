@@ -48,6 +48,7 @@ interface ProfileData {
   monthOffset?: number;
   recent: SessionRow[];
   insights?: InsightData;
+  nightHours?: number[];
 }
 
 function relTime(iso: string) {
@@ -121,6 +122,103 @@ function buildDigest(data: ProfileData): string {
   lines.push(`· ${hours}h ${rest}m altogether`);
   if (weekTotal > 0) lines.push(`· ${weekTotal} min this week`);
   return lines.join("\n");
+}
+
+/**
+ * "Your night rhythm" — a 24-hour histogram of when listening actually happens.
+ * Night hours (21:00 → 06:00) burn moon-tinted; daytime hours stay quiet grey.
+ */
+function NightRhythm({ hours, sessions }: { hours: number[]; sessions: number }) {
+  if (hours.length !== 24) return null;
+  const max = Math.max(...hours, 1);
+  const total = hours.reduce((a, b) => a + b, 0);
+  const isNightHour = (h: number) => h >= 21 || h < 6;
+  const peakHour = hours.indexOf(max);
+  const peakLabel = total > 0 ? `${String(peakHour).padStart(2, "0")}:00` : null;
+
+  const hourLabel = (h: number) => {
+    if (h === 0) return "midnight";
+    if (h < 12) return `${h}am`;
+    if (h === 12) return "noon";
+    return `${h - 12}pm`;
+  };
+
+  return (
+    <div className="glass-panel relative mt-5 overflow-hidden rounded-3xl p-6 sm:p-8">
+      <div
+        aria-hidden="true"
+        className="anim-breathe pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[radial-gradient(circle,rgba(143,161,196,0.10),transparent_70%)]"
+      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-xs uppercase tracking-widest text-mist-400">your night rhythm</p>
+          <h3 className="mt-2 font-serif text-xl font-light text-moon-100">
+            The hours that hold you
+          </h3>
+        </div>
+        {peakLabel && (
+          <p className="font-mono text-[11px] text-mist-500">
+            usually adrift around <span className="text-moon-200">{peakLabel}</span>
+          </p>
+        )}
+      </div>
+
+      {total === 0 || sessions === 0 ? (
+        <p className="mt-5 flex items-center gap-2 rounded-xl bg-moon-200/[0.04] px-4 py-3.5 text-xs text-mist-400">
+          <MoonStar className="h-3.5 w-3.5 text-moon-300/70" aria-hidden="true" />
+          No rhythm yet — complete a drift and the pattern will surface here.
+        </p>
+      ) : (
+        <>
+          <div
+            className="mt-6 flex h-28 items-end gap-[3px] sm:gap-1"
+            role="img"
+            aria-label={`Night rhythm histogram: most listening around ${peakLabel}, ${Math.floor(total / 60)} hours ${total % 60} minutes in total`}
+          >
+            {/* rotate to noon-anchored order (12→23, 0→11) so the whole night sits mid-chart */}
+            {[...hours.slice(12), ...hours.slice(0, 12)].map((m, i) => {
+              const h = (i + 12) % 24;
+              const night = isNightHour(h);
+              const pct = Math.max(m > 0 ? 6 : 2, Math.round((m / max) * 100));
+              return (
+                <div key={i} className="group relative flex h-full flex-1 items-end">
+                  <div
+                    className={`w-full rounded-t-md transition-all duration-700 group-hover:brightness-150 ${
+                      night
+                        ? m > 0
+                          ? "bg-gradient-to-t from-moon-500/40 to-moon-200/90 shadow-[0_0_10px_rgba(236,226,200,0.18)]"
+                          : "bg-white/[0.05]"
+                        : m > 0
+                          ? "bg-mist-400/25"
+                          : "bg-white/[0.03]"
+                    }`}
+                    style={{ height: `${pct}%` }}
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-lg bg-night-950/95 px-2 py-1 font-mono text-[10px] text-moon-100 opacity-0 ring-1 ring-white/10 transition-all duration-300 group-hover:-translate-y-1 group-hover:opacity-100"
+                  >
+                    {hourLabel(h)} · {m > 0 ? `${m}m` : "quiet"}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-2.5 flex justify-between font-mono text-[9px] uppercase tracking-[0.18em] text-mist-600" aria-hidden="true">
+            <span>noon</span>
+            <span>6pm</span>
+            <span className="text-moon-300/70">midnight</span>
+            <span>6am</span>
+            <span>noon</span>
+          </div>
+          <p className="mt-4 border-t border-white/5 pt-4 text-[11px] leading-relaxed text-mist-500">
+            Moonlit bars are the deep hours — 9pm until 6am — when the night usually
+            takes you. Daytime listening stays a quiet grey.
+          </p>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default function Journal() {
@@ -644,6 +742,11 @@ export default function Journal() {
               );
             })()}
           </div>
+        )}
+
+        {/* ── your night rhythm — the hours that hold you ── */}
+        {data && data.nightHours && (
+          <NightRhythm hours={data.nightHours} sessions={data.insights?.sessions ?? 0} />
         )}
 
         {/* ── dream notebook ── */}

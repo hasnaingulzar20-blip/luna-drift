@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownToLine,
   ArrowUpFromLine,
@@ -8,6 +8,7 @@ import {
   Flame,
   Info,
   Link2,
+  Moon,
   Plus,
   SlidersHorizontal,
   Star,
@@ -17,7 +18,9 @@ import {
   Shuffle,
 } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { usePlayer } from "@/store/player";
+import { audioEngine } from "@/lib/audio-engine";
 import { MIXER_LAYERS, MIX_PRESETS, TONIGHTS_PICK, getSoundscape, type MixerLayerId } from "@/lib/soundscapes";
 import { buildMixLink } from "@/components/atmosphere/shared-mix";
 
@@ -37,8 +40,10 @@ export default function Mixer() {
   const mix = usePlayer((s) => s.mix);
   const masterVolume = usePlayer((s) => s.masterVolume);
   const isPlaying = usePlayer((s) => s.isPlaying);
+  const nightCap = usePlayer((s) => s.nightCap);
   const setMixLayer = usePlayer((s) => s.setMixLayer);
   const setMasterVolume = usePlayer((s) => s.setMasterVolume);
+  const setNightCap = usePlayer((s) => s.setNightCap);
   const applyPreset = usePlayer((s) => s.applyPreset);
   const playSoundscape = usePlayer((s) => s.playSoundscape);
   const customPresets = usePlayer((s) => s.customPresets);
@@ -56,6 +61,12 @@ export default function Mixer() {
   const [importNote, setImportNote] = useState<string | null>(null);
   const [exportNote, setExportNote] = useState<string | null>(null);
   const importAreaRef = useRef<HTMLTextAreaElement>(null);
+
+  // re-apply the persisted night cap to the engine once on mount
+  // (the engine cannot read localStorage itself)
+  useEffect(() => {
+    audioEngine.setNightCap(usePlayer.getState().nightCap);
+  }, []);
 
   const onLayerChange = (id: MixerLayerId, v: number) => {
     // dragging a layer while silent gently wakes tonight's drift
@@ -385,6 +396,26 @@ export default function Mixer() {
                   aria-label="Master volume"
                   onValueChange={(vals) => setMasterVolume((vals[0] ?? 0) / 100)}
                   className="[&_[data-slot=slider-track]]:h-1.5 [&_[data-slot=slider-track]]:bg-white/8"
+                />
+              </div>
+
+              {/* night cap — a gentle loudness ceiling for shared rooms */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3 transition hover:border-moon-200/15">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.04] ring-1 ring-white/10">
+                    <Moon className={`h-3.5 w-3.5 transition-colors ${nightCap ? "text-moon-200" : "text-mist-400"}`} aria-hidden="true" />
+                  </span>
+                  <div>
+                    <p className="text-sm text-moon-100">Night cap</p>
+                    <p className="text-[11px] leading-snug text-mist-500">
+                      ceilings sudden louds — thunder, horns, crackles
+                    </p>
+                  </div>
+                </div>
+                <Switch
+                  checked={nightCap}
+                  onCheckedChange={setNightCap}
+                  aria-label="Toggle night cap loudness ceiling"
                 />
               </div>
 

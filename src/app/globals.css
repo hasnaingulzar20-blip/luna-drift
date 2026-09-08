@@ -284,14 +284,31 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   100% { transform: scale(1.55); opacity: 0; }
 }
 
+/* library card weather — snow drifting down, embers drifting up */
+@keyframes snow-fall {
+  0%   { transform: translate3d(0, -10px, 0); opacity: 0; }
+  10%  { opacity: 0.9; }
+  55%  { transform: translate3d(7px, 95px, 0); }
+  100% { transform: translate3d(14px, 195px, 0); opacity: 0; }
+}
+@keyframes ember-rise {
+  0%   { transform: translate3d(0, 8px, 0) scale(1); opacity: 0; }
+  18%  { opacity: 0.95; }
+  60%  { transform: translate3d(-6px, -90px, 0) scale(0.75); }
+  100% { transform: translate3d(-12px, -180px, 0) scale(0.4); opacity: 0; }
+}
+
 .anim-drift { animation: drift-slow 26s ease-in-out infinite; }
 .anim-breathe { animation: breathe 7s ease-in-out infinite; }
 .anim-float { animation: float-y 9s ease-in-out infinite; }
 .anim-spin-slower { animation: spin-slower 90s linear infinite; }
 .anim-ripple { animation: ripple-out 2.2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; }
+.anim-snow { animation: snow-fall linear infinite; will-change: transform; }
+.anim-ember { animation: ember-rise ease-in infinite; will-change: transform; }
 
 @media (prefers-reduced-motion: reduce) {
   .anim-ripple { animation: none; opacity: 0; }
+  .anim-snow, .anim-ember { animation: none; opacity: 0; }
 }
 
 /* ── quiet keys & moonlit focus ────────────────────────── */

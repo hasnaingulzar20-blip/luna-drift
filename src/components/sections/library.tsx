@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Dices, Pause, Play, Star } from "lucide-react";
-import { SOUNDSCAPES, getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
+import { Dices, Moon, Pause, Play, Star } from "lucide-react";
+import { SOUNDSCAPES, TONIGHTS_PICK, getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 import { usePlayer } from "@/store/player";
 import { EqualizerBars } from "./site-header";
 
@@ -172,6 +172,56 @@ export default function Library() {
                     <span className="glass-chip absolute right-3.5 top-3.5 rounded-full px-2.5 py-1 text-[10px] tracking-widest text-mist-200">
                       {s.duration.toUpperCase()}
                     </span>
+
+                    {/* weather flourishes — each room breathes its own element on hover */}
+                    {s.id === "snow" && (hovered === s.id || isActive) && (
+                      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden motion-reduce:hidden">
+                        {Array.from({ length: 16 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className="anim-snow absolute rounded-full bg-white/85"
+                            style={{
+                              left: `${(i * 61 + 13) % 100}%`,
+                              top: "-8px",
+                              width: `${2 + (i % 3)}px`,
+                              height: `${2 + (i % 3)}px`,
+                              animationDelay: `${(i % 8) * 0.9}s`,
+                              animationDuration: `${6.5 + (i % 5) * 1.6}s`,
+                              opacity: 0,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {s.id === "fireplace" && (hovered === s.id || isActive) && (
+                      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden motion-reduce:hidden">
+                        {Array.from({ length: 9 }).map((_, i) => (
+                          <span
+                            key={i}
+                            className="anim-ember absolute rounded-full"
+                            style={{
+                              left: `${8 + ((i * 37) % 84)}%`,
+                              bottom: "6px",
+                              width: `${2 + (i % 2)}px`,
+                              height: `${2 + (i % 2)}px`,
+                              background: i % 2 === 0 ? "#f0b98a" : "#e09659",
+                              boxShadow: "0 0 6px rgba(224,150,89,0.8)",
+                              animationDelay: `${(i % 6) * 0.7}s`,
+                              animationDuration: `${4.5 + (i % 4) * 1.3}s`,
+                              opacity: 0,
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+
+                    {/* tonight's pick — a small crescent ties the card to the hero */}
+                    {s.id === TONIGHTS_PICK && (
+                      <span className="glass-chip absolute bottom-3 left-3.5 flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] tracking-widest text-moon-200">
+                        <Moon className="h-3 w-3" aria-hidden="true" />
+                        tonight&apos;s pick
+                      </span>
+                    )}
 
                     {/* sheen sweep — moonlight crossing the glass on hover */}
                     <span

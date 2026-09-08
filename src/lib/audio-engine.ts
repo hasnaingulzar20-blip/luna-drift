@@ -1046,6 +1046,7 @@ export class AudioEngine {
   private fade!: GainNode;
   private duck!: GainNode;
   private master!: GainNode;
+  private comp: DynamicsCompressorNode | null = null;
   private analyser: AnalyserNode | null = null;
   private analyserData: Uint8Array<ArrayBuffer> | null = null;
   private base: LayerState | null = null;
@@ -1054,6 +1055,7 @@ export class AudioEngine {
   private masterVolume = 0.9;
   private baseTrim = 1; // trim for the currently-loading base
   private baseTrims: Partial<Record<SoundscapeId, number>> = {}; // per-soundscape room level 0.4..1.2
+  private nightCapOn = false; // gentle loudness ceiling for shared rooms / light sleepers
 
   get context(): AudioContext | null {
     return this.ctx;
@@ -1083,6 +1085,8 @@ export class AudioEngine {
       comp.threshold.value = -20;
       comp.knee.value = 18;
       comp.ratio.value = 4;
+      this.comp = comp;
+      this.applyNightCapTone();
       this.fade.connect(this.duck).connect(this.master).connect(comp).connect(this.ctx.destination);
       this.master.connect(this.analyser);
     }
@@ -1156,9 +1160,48 @@ export class AudioEngine {
     }
   }
 
+  /**
+   * Night cap — a gentle loudness ceiling. When on, sudden louds (far thunder,
+   * train horns, crackles, struck bowls) are compressed much harder and the
+   * overall level rests a touch lower, so a shared room stays asleep.
+   */
+  setNightCap(on: boolean) {
+    this.nightCapOn = on;
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    if (this.comp) {
+      this.comp.threshold.setTargetAtTime(on ? -38 : -20, t, 0.45);
+      this.comp.ratio.setTargetAtTime(on ? 12 : 4, t, 0.45);
+    }
+    this.applyMasterCeiling(0.4);
+  }
+
+  get nightCapActive() {
+    return this.nightCapOn;
+  }
+
+  /** compressor personality follows the night cap switch (used at ctx birth too) */
+  private applyNightCapTone() {
+    if (!this.comp) return;
+    if (this.nightCapOn) {
+      this.comp.threshold.value = -38;
+      this.comp.ratio.value = 12;
+    } else {
+      this.comp.threshold.value = -20;
+      this.comp.ratio.value = 4;
+    }
+  }
+
+  /** master gain = user volume × a slightly lower ceiling when capped */
+  private applyMasterCeiling(ramp = 0.12) {
+    if (!this.ctx) return;
+    const ceiling = this.nightCapOn ? 0.82 : 1;
+    this.master.gain.setTargetAtTime(this.masterVolume * ceiling, this.ctx.currentTime, ramp);
+  }
+
   setMasterVolume(v: number) {
     this.masterVolume = v;
-    if (this.ctx) this.master.gain.setTargetAtTime(v, this.ctx.currentTime, 0.12);
+    this.applyMasterCeiling(0.12);
   }
 
   /** timer fade — call each tick with remaining/duration when inside last minute */
