@@ -36,7 +36,7 @@ export default function Library() {
               <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>The Library
             </p>
             <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
-              Seven rooms of quiet
+              Eight rooms of quiet
             </h2>
           </div>
 

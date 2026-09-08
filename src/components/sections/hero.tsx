@@ -120,7 +120,16 @@ export default function Hero() {
           </p>
 
           <h1 className="mt-5 font-serif text-5xl font-light leading-[1.05] text-glow text-moon-100 sm:text-6xl lg:text-7xl">
-            {pick.name}
+            {(() => {
+              const words = pick.name.split(" ");
+              const last = words.pop() ?? "";
+              return (
+                <>
+                  {words.join(" ")}{" "}
+                  <span className="italic text-moon-200">{last}</span>
+                </>
+              );
+            })()}
           </h1>
           <p className="mt-3 font-serif text-xl italic text-mist-200/90">
             a {pick.duration} drift into sleep

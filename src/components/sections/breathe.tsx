@@ -19,13 +19,15 @@ export default function Breathe() {
   const [phaseIdx, setPhaseIdx] = useState(0);
   const [left, setLeft] = useState(PHASES[0].seconds);
   const [cycles, setCycles] = useState(0);
+  const [rippleKey, setRippleKey] = useState(0);
   const phaseStart = useRef<number>(0);
 
   const phase = PHASES[phaseIdx];
 
-  // gentle haptic pulse at each phase change (where the platform allows it)
+  // gentle haptic pulse + a visible ripple at each phase change
   useEffect(() => {
     if (!running) return;
+    setRippleKey((k) => k + 1);
     if (typeof navigator === "undefined" || !("vibrate" in navigator)) return;
     try {
       if (phase.name === "inhale") navigator.vibrate(35);
@@ -153,6 +155,14 @@ export default function Breathe() {
             {/* the breathing moon */}
             <div className="mx-auto flex flex-col items-center">
               <div className="relative flex h-52 w-52 items-center justify-center sm:h-60 sm:w-60">
+                {/* ripple — a ring that breathes out with every phase change */}
+                {running && (
+                  <span
+                    key={rippleKey}
+                    aria-hidden="true"
+                    className="anim-ripple absolute inset-3 rounded-full border border-moon-200/45"
+                  />
+                )}
                 {/* orbit ring with progress dash */}
                 <svg
                   viewBox="0 0 120 120"

@@ -2,14 +2,23 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dayKey, ensureProfile } from "@/lib/journal";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const profile = await ensureProfile();
 
+    // constellation window — offset 0 = the last 35 days ending tonight,
+    // offset N = the 35-day window N*35 days further back (month navigation)
+    const url = new URL(req.url);
+    const raw = Number(url.searchParams.get("monthOffset") ?? "0");
+    const offset = Number.isFinite(raw) ? Math.min(11, Math.max(0, Math.floor(raw))) : 0;
+
     // last 35 days, oldest → newest (feeds both the week chart and the constellation)
-    const since = new Date();
-    since.setHours(0, 0, 0, 0);
-    since.setDate(since.getDate() - 34);
+    const end = new Date();
+    end.setHours(0, 0, 0, 0);
+    end.setDate(end.getDate() - offset * 35);
+
+    const since = new Date(end);
+    since.setDate(end.getDate() - 34);
 
     const windowSessions = await db.sleepSession.findMany({
       where: { profileId: profile.id, endedAt: { gte: since } },
@@ -26,7 +35,8 @@ export async function GET() {
       const minutes = windowSessions
         .filter((s) => dayKey(s.endedAt) === key)
         .reduce((sum, s) => sum + s.minutes, 0);
-      if (i >= 28) {
+      // the week chart always shows the current week, whatever window is navigated
+      if (i >= 28 && offset === 0) {
         week.push({ day: dayLabels[d.getDay()], minutes });
       }
       month.push({
@@ -35,6 +45,9 @@ export async function GET() {
         minutes,
       });
     }
+
+    // default payload keeps its week data; navigated windows return week: null
+    const weekData = offset === 0 ? week : null;
 
     const recent = await db.sleepSession.findMany({
       where: { profileId: profile.id },
@@ -68,8 +81,9 @@ export async function GET() {
       name: profile.name,
       streak: profile.streak,
       totalMinutes: profile.totalMinutes,
-      week,
+      week: weekData,
       month,
+      monthOffset: offset,
       recent: recent.map((s) => ({
         id: s.id,
         soundscape: s.soundscape,

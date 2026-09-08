@@ -44,7 +44,7 @@ export default function Home() {
     }
   }, [immersive]);
 
-  // keyboard shortcuts: space = play/pause · 1–7 = soundscapes · m = immersion
+  // keyboard shortcuts: space = play/pause · 1–8 = soundscapes · m = immersion
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
@@ -64,7 +64,7 @@ export default function Home() {
         else s.playSoundscape(s.active ?? TONIGHTS_PICK);
       } else if (e.key.toLowerCase() === "m" && !e.repeat) {
         s.toggleImmersive();
-      } else if (/^[1-7]$/.test(e.key) && !e.repeat) {
+      } else if (/^[1-8]$/.test(e.key) && !e.repeat) {
         const sc = SOUNDSCAPES[Number(e.key) - 1];
         if (sc) s.playSoundscape(sc.id);
       }

@@ -5,7 +5,8 @@ export type SoundscapeId =
   | "cafe"
   | "fireplace"
   | "piano"
-  | "train";
+  | "train"
+  | "bowls";
 
 export interface Soundscape {
   id: SoundscapeId;
@@ -113,6 +114,19 @@ export const SOUNDSCAPES: Soundscape[] = [
     hue: "#a092c4",
     glow: "rgba(160,146,196,0.3)",
     image: "/images/sc-train.png",
+  },
+  {
+    id: "bowls",
+    name: "Singing Bowls",
+    tagline: "Struck bronze, long decay",
+    description:
+      "Tibetan bowls in a stone room. Each strike blooms into inharmonic overtones that beat against each other and shimmer for ten seconds or more, over a warm dark drone.",
+    duration: "60 min",
+    bpmHint: "looping",
+    notes: ["bronze bloom", "beating overtones", "stone room"],
+    hue: "#d4b98c",
+    glow: "rgba(212,185,140,0.3)",
+    image: "/images/sc-bowls.png",
   },
 ];
 

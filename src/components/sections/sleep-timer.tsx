@@ -499,9 +499,29 @@ export default function SleepTimer() {
                       className="mt-2 w-full rounded-xl border border-white/10 bg-night-950/40 px-4 py-2.5 text-sm text-moon-100 outline-none transition placeholder:text-mist-600 focus:border-moon-200/40"
                     />
 
-                    <p className="mt-5 text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
-                      the rooms, in order
-                    </p>
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
+                        the rooms, in order
+                      </p>
+                      {/* quick fill — one tap gives every step the same length */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="mr-0.5 text-[10px] tracking-wide text-mist-600">quick fill</span>
+                        {[5, 10, 15, 20, 30].map((n) => (
+                          <button
+                            key={n}
+                            type="button"
+                            disabled={buildSteps.length === 0}
+                            onClick={() =>
+                              setBuildSteps((prev) => prev.map((p) => ({ ...p, minutes: n })))
+                            }
+                            aria-label={`Set every step to ${n} minutes`}
+                            className="rounded-full bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] text-mist-400 ring-1 ring-white/8 transition hover:bg-moon-200/10 hover:text-moon-100 disabled:opacity-30"
+                          >
+                            {n}m
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="mt-2 space-y-2">
                       {buildSteps.map((st, i) => (
                         <div key={st.id} className="flex items-center gap-2">

@@ -1,0 +1,660 @@
+     1→"use client";
+     2→
+     3→import { useState } from "react";
+     4→import {
+     5→  AlarmClock,
+     6→  BellRing,
+     7→  Check,
+     8→  ChevronDown,
+     9→  ChevronUp,
+    10→  Info,
+    11→  ListMusic,
+    12→  Moon,
+    13→  Play,
+    14→  Plus,
+    15→  Sunrise,
+    16→  Timer as TimerIcon,
+    17→  Trash2,
+    18→  X,
+    19→} from "lucide-react";
+    20→import { Switch } from "@/components/ui/switch";
+    21→import {
+    22→  Select,
+    23→  SelectContent,
+    24→  SelectItem,
+    25→  SelectTrigger,
+    26→  SelectValue,
+    27→} from "@/components/ui/select";
+    28→import Ornament from "@/components/atmosphere/ornament";
+    29→import { usePlayer } from "@/store/player";
+    30→import {
+    31→  SOUNDSCAPES,
+    32→  getSoundscape,
+    33→  type SoundscapeId,
+    34→} from "@/lib/soundscapes";
+    35→import {
+    36→  SEQUENCE_MAX_STEPS,
+    37→  STEP_MAX_MINUTES,
+    38→  STEP_MIN_MINUTES,
+    39→  WIND_DOWN_SEQUENCES,
+    40→  clampStepMinutes,
+    41→  totalSequenceMinutes,
+    42→  type SequenceSound,
+    43→  type WindDownSequence,
+    44→  type WindDownStep,
+    45→} from "@/lib/sequences";
+    46→
+    47→function formatRemaining(sec: number) {
+    48→  const m = Math.floor(sec / 60);
+    49→  const s = sec % 60;
+    50→  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    51→}
+    52→
+    53→const SILENCE_LABEL = "Silence";
+    54→
+    55→function stepLabel(sound: SequenceSound): string {
+    56→  return sound === "silence" ? SILENCE_LABEL : getSoundscape(sound).name;
+    57→}
+    58→
+    59→/** A small room → minutes chip used in sequence flows. */
+    60→function StepChip({
+    61→  step,
+    62→  state = "idle",
+    63→  remaining,
+    64→}: {
+    65→  step: WindDownStep;
+    66→  state?: "idle" | "done" | "current" | "ahead";
+    67→  remaining?: number;
+    68→}) {
+    69→  const base =
+    70→    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-500 ring-1";
+    71→  const look =
+    72→    state === "current"
+    73→      ? "bg-moon-200/15 text-moon-100 ring-moon-200/50 shadow-[0_0_18px_rgba(236,226,200,0.18)]"
+    74→      : state === "done"
+    75→        ? "bg-white/[0.02] text-mist-500 ring-white/6 line-through decoration-mist-600/60"
+    76→        : state === "ahead"
+    77→          ? "bg-white/[0.03] text-mist-300 ring-white/10"
+    78→          : "bg-white/[0.03] text-mist-300 ring-white/10";
+    79→  return (
+    80→    <span className={`${base} ${look}`}>
+    81→      {step.soundscape === "silence" ? (
+    82→        <Moon className="h-3 w-3 text-mist-500" aria-hidden="true" />
+    83→      ) : (
+    84→        <span
+    85→          aria-hidden="true"
+    86→          className="h-1.5 w-1.5 rounded-full"
+    87→          style={{ background: getSoundscape(step.soundscape as SoundscapeId).hue }}
+    88→        />
+    89→      )}
+    90→      {stepLabel(step.soundscape)}
+    91→      <span className="font-mono text-[10px] text-mist-500">{step.minutes}′</span>
+    92→      {state === "current" && remaining !== undefined && (
+    93→        <span className="font-mono text-[10px] text-moon-200" aria-live="polite">
+    94→          {formatRemaining(remaining)}
+    95→        </span>
+    96→      )}
+    97→    </span>
+    98→  );
+    99→}
+   100→
+   101→function HandArrow() {
+   102→  return (
+   103→    <span aria-hidden="true" className="text-mist-600">
+   104→      →
+   105→    </span>
+   106→  );
+   107→}
+   108→
+   109→export default function SleepTimer() {
+   110→  const timerDuration = usePlayer((s) => s.timerDuration);
+   111→  const remainingSeconds = usePlayer((s) => s.remainingSeconds);
+   112→  const starIntensity = usePlayer((s) => s.starIntensity);
+   113→  const isPlaying = usePlayer((s) => s.isPlaying);
+   114→  const startTimer = usePlayer((s) => s.startTimer);
+   115→  const cancelTimer = usePlayer((s) => s.cancelTimer);
+   116→  const wakeAlarm = usePlayer((s) => s.wakeAlarm);
+   117→  const setWakeTime = usePlayer((s) => s.setWakeTime);
+   118→  const setWakeEnabled = usePlayer((s) => s.setWakeEnabled);
+   119→  const chimeOnEnd = usePlayer((s) => s.chimeOnEnd);
+   120→  const setChimeOnEnd = usePlayer((s) => s.setChimeOnEnd);
+   121→  const sequence = usePlayer((s) => s.sequence);
+   122→  const customSequences = usePlayer((s) => s.customSequences);
+   123→  const startSequence = usePlayer((s) => s.startSequence);
+   124→  const cancelSequence = usePlayer((s) => s.cancelSequence);
+   125→  const saveSequence = usePlayer((s) => s.saveSequence);
+   126→  const deleteSequence = usePlayer((s) => s.deleteSequence);
+   127→
+   128→  /* builder state */
+   129→  const [building, setBuilding] = useState(false);
+   130→  const [buildName, setBuildName] = useState("");
+   131→  const [buildSteps, setBuildSteps] = useState<WindDownStep[]>([
+   132→    { id: "b0", soundscape: "rain", minutes: 20 },
+   133→  ]);
+   134→
+   135→  const progress = timerDuration
+   136→    ? 1 - remainingSeconds / (timerDuration * 60)
+   137→    : 0;
+   138→  const circumference = 2 * Math.PI * 54;
+   139→  const fading = timerDuration !== null && remainingSeconds <= 60 && remainingSeconds > 0;
+   140→
+   141→  return (
+   142→    <section id="timer" aria-label="Sleep timer" className="relative mt-24 scroll-mt-28 sm:mt-32">
+   143→      <div className="mx-auto max-w-6xl px-5">
+   144→        <div className="glass-panel relative overflow-hidden rounded-[2rem] p-6 sm:p-10">
+   145→          <div
+   146→            aria-hidden="true"
+   147→            className="pointer-events-none absolute -bottom-28 -left-16 h-72 w-72 rounded-full bg-[radial-gradient(circle,rgba(205,180,124,0.08),transparent_70%)]"
+   148→          />
+   149→          <div className="relative grid items-center gap-10 lg:grid-cols-[1fr_auto]">
+   150→            <div>
+   151→              <p className="text-[11px] uppercase tracking-[0.3em] text-moon-300/80">
+   152→                <span className="text-moon-300/40" aria-hidden="true">VI</span>
+   153→                <span className="mx-1.5 text-white/20" aria-hidden="true">·</span>Sleep Timer
+   154→              </p>
+   155→              <h2 className="mt-3 font-serif text-3xl font-light text-moon-100 sm:text-4xl">
+   156→                Drift off, then silence
+   157→              </h2>
+   158→              <p className="mt-4 max-w-md text-sm leading-relaxed text-mist-300">
+   159→                Choose how long tonight&apos;s drift should last. Over the final minute the sound
+   160→                eases away in a long fade, and the stars above begin to dim with you.
+   161→              </p>
+   162→
+   163→              <div className="mt-8 flex flex-wrap gap-3" role="group" aria-label="Timer length">
+   164→                {([30, 60, 90] as const).map((m) => {
+   165→                  const isActiveTimer = timerDuration === m;
+   166→                  return (
+   167→                    <button
+   168→                      key={m}
+   169→                      type="button"
+   170→                      onClick={() => startTimer(m)}
+   171→                      aria-pressed={isActiveTimer}
+   172→                      className={`flex h-14 w-20 flex-col items-center justify-center rounded-2xl text-sm transition-all duration-300 ${
+   173→                        isActiveTimer
+   174→                          ? "bg-moon-200 text-night-950 shadow-[0_0_30px_rgba(236,226,200,0.35)]"
+   175→                          : "bg-white/[0.03] text-moon-100 ring-1 ring-white/10 hover:bg-moon-200/10 hover:ring-moon-200/30"
+   176→                      }`}
+   177→                    >
+   178→                      <TimerIcon className="mb-1 h-3.5 w-3.5 opacity-70" aria-hidden="true" />
+   179→                      {m} min
+   180→                    </button>
+   181→                  );
+   182→                })}
+   183→                {timerDuration !== null && (
+   184→                  <button
+   185→                    type="button"
+   186→                    onClick={cancelTimer}
+   187→                    className="flex h-14 items-center gap-2 rounded-2xl bg-white/[0.03] px-5 text-sm text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+   188→                    aria-label="Cancel sleep timer"
+   189→                  >
+   190→                    <X className="h-3.5 w-3.5" aria-hidden="true" /> Cancel
+   191→                  </button>
+   192→                )}
+   193→              </div>
+   194→
+   195→              <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs text-mist-400">
+   196→                <span className="flex items-center gap-2">
+   197→                  <span
+   198→                    aria-hidden="true"
+   199→                    className="inline-block h-2 w-2 rounded-full bg-star-200 transition-opacity duration-1000"
+   200→                    style={{ opacity: starIntensity }}
+   201→                  />
+   202→                  stars twinkle {starIntensity > 0.8 ? "gently" : starIntensity > 0.45 ? "softer" : "sleepily"}
+   203→                </span>
+   204→                {!isPlaying && (
+   205→                  <span className="text-mist-500">start a soundscape first, then set the timer</span>
+   206→                )}
+   207→              </div>
+   208→            </div>
+   209→
+   210→            {/* countdown dial */}
+   211→            <div className="mx-auto flex flex-col items-center">
+   212→              <div className={`relative h-40 w-40 sm:h-44 sm:w-44 ${fading ? "animate-pulse" : ""}`}>
+   213→                <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
+   214→                  <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(159,173,216,0.12)" strokeWidth="4" />
+   215→                  <circle
+   216→                    cx="60"
+   217→                    cy="60"
+   218→                    r="54"
+   219→                    fill="none"
+   220→                    stroke="url(#timerGrad)"
+   221→                    strokeWidth="4"
+   222→                    strokeLinecap="round"
+   223→                    strokeDasharray={circumference}
+   224→                    strokeDashoffset={circumference * (1 - progress)}
+   225→                    className="transition-[stroke-dashoffset] duration-1000 ease-linear"
+   226→                  />
+   227→                  <defs>
+   228→                    <linearGradient id="timerGrad" x1="0" y1="0" x2="1" y2="1">
+   229→                      <stop offset="0%" stopColor="#ece2c8" />
+   230→                      <stop offset="100%" stopColor="#cdb47c" />
+   231→                    </linearGradient>
+   232→                  </defs>
+   233→                </svg>
+   234→                <div className="absolute inset-0 flex flex-col items-center justify-center">
+   235→                  <Moon
+   236→                    className={`mb-1.5 h-4 w-4 text-moon-300 transition-opacity duration-1000 ${timerDuration ? "" : "opacity-30"}`}
+   237→                    aria-hidden="true"
+   238→                  />
+   239→                  <span className="font-mono text-2xl text-moon-100" aria-live="polite">
+   240→                    {timerDuration ? formatRemaining(remainingSeconds) : "--:--"}
+   241→                  </span>
+   242→                  <span className="mt-1 text-[10px] uppercase tracking-[0.25em] text-mist-500">
+   243→                    {timerDuration ? (fading ? "fading out" : "drifting") : "no timer"}
+   244→                  </span>
+   245→                </div>
+   246→              </div>
+   247→              {fading && (
+   248→                <p className="mt-3 animate-pulse text-xs italic text-moon-300/80">
+   249→                  the long fade has begun…
+   250→                </p>
+   251→              )}
+   252→            </div>
+   253→          </div>
+   254→
+   255→          {/* ── endings: wake light + last bell ── */}
+   256→          <Ornament className="mt-10" />
+   257→          <div className="mt-8 grid gap-6 lg:grid-cols-2">
+   258→            {/* wake light */}
+   259→            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+   260→              <div
+   261→                aria-hidden="true"
+   262→                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(240,185,138,0.16),transparent_70%)]"
+   263→              />
+   264→              <div className="relative flex flex-wrap items-center justify-between gap-4">
+   265→                <div className="min-w-0">
+   266→                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+   267→                    <Sunrise className="h-3.5 w-3.5 text-ember-300" aria-hidden="true" />
+   268→                    wake light
+   269→                  </p>
+   270→                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-mist-400">
+   271→                    At the hour you choose, the screen slowly warms like dawn through curtains —
+   272→                    and a faraway bell rings the room awake.
+   273→                  </p>
+   274→                  <p className="mt-2 font-mono text-[11px] text-moon-300/90" aria-live="polite">
+   275→                    {wakeAlarm.enabled ? `armed for ${wakeAlarm.time}` : "off — sleep without a schedule"}
+   276→                  </p>
+   277→                  <p className="mt-1.5 flex items-start gap-1.5 text-[10px] leading-relaxed text-mist-600">
+   278→                    <Info className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+   279→                    web alarms need an open tab — leave Luna Drift resting in a background tab
+   280→                    overnight
+   281→                  </p>
+   282→                </div>
+   283→                <div className="flex items-center gap-3">
+   284→                  <div className="glass-chip flex items-center gap-2 rounded-full px-3 py-1.5">
+   285→                    <AlarmClock className="h-3.5 w-3.5 text-moon-200" aria-hidden="true" />
+   286→                    <input
+   287→                      type="time"
+   288→                      value={wakeAlarm.time}
+   289→                      onChange={(e) => setWakeTime(e.target.value)}
+   290→                      aria-label="Wake light time"
+   291→                      className="bg-transparent font-mono text-sm text-moon-100 outline-none [color-scheme:dark]"
+   292→                    />
+   293→                  </div>
+   294→                  <Switch
+   295→                    checked={wakeAlarm.enabled}
+   296→                    onCheckedChange={setWakeEnabled}
+   297→                    aria-label="Enable wake light"
+   298→                    className="data-[state=checked]:bg-ember-400/80"
+   299→                  />
+   300→                </div>
+   301→              </div>
+   302→            </div>
+   303→
+   304→            {/* the last bell */}
+   305→            <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
+   306→              <div
+   307→                aria-hidden="true"
+   308→                className="anim-breathe pointer-events-none absolute -bottom-14 -right-10 h-40 w-40 rounded-full bg-[radial-gradient(circle,rgba(205,180,124,0.14),transparent_70%)]"
+   309→                style={{ animationDelay: "1.2s" }}
+   310→              />
+   311→              <div className="relative flex flex-wrap items-center justify-between gap-4">
+   312→                <div className="min-w-0">
+   313→                  <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+   314→                    <BellRing className="h-3.5 w-3.5 text-moon-300" aria-hidden="true" />
+   315→                    the last bell
+   316→                  </p>
+   317→                  <p className="mt-2 max-w-xs text-xs leading-relaxed text-mist-400">
+   318→                    When a timer runs its course, one very soft bell marks the end — then
+   319→                    nothing at all. Off means silence takes you the rest of the way.
+   320→                  </p>
+   321→                </div>
+   322→                <Switch
+   323→                  checked={chimeOnEnd}
+   324→                  onCheckedChange={setChimeOnEnd}
+   325→                  aria-label="Ring a soft bell when the timer completes"
+   326→                />
+   327→              </div>
+   328→            </div>
+   329→          </div>
+   330→
+   331→          {/* ── wind-down sequences ── */}
+   332→          <Ornament className="mt-10" />
+   333→          <div className="mt-8">
+   334→            <div className="flex flex-wrap items-center justify-between gap-3">
+   335→              <p className="flex items-center gap-2 text-xs uppercase tracking-widest text-mist-300">
+   336→                <ListMusic className="h-3.5 w-3.5 text-moon-300" aria-hidden="true" />
+   337→                wind-down sequences
+   338→              </p>
+   339→              <p className="text-[11px] italic text-mist-500">
+   340→                rooms that hand you over to each other, then to silence
+   341→              </p>
+   342→            </div>
+   343→
+   344→            {sequence ? (
+   345→              /* ── active sequence ── */
+   346→              <div className="mt-4 rounded-2xl border border-moon-200/25 bg-moon-200/[0.05] p-5">
+   347→                <div className="flex flex-wrap items-center justify-between gap-3">
+   348→                  <div>
+   349→                    <p className="font-serif text-lg text-moon-100">{sequence.name}</p>
+   350→                    <p className="mt-0.5 text-[11px] text-mist-400" aria-live="polite">
+   351→                      step {sequence.stepIndex + 1} of {sequence.steps.length} ·{" "}
+   352→                      {stepLabel(sequence.steps[sequence.stepIndex]?.soundscape ?? "silence")} ·{" "}
+   353→                      {formatRemaining(sequence.stepRemaining)} in this room
+   354→                    </p>
+   355→                  </div>
+   356→                  <button
+   357→                    type="button"
+   358→                    onClick={cancelSequence}
+   359→                    className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-xs text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+   360→                  >
+   361→                    <X className="h-3 w-3" aria-hidden="true" /> end the handover
+   362→                  </button>
+   363→                </div>
+   364→
+   365→                <div className="mt-4 flex flex-wrap items-center gap-2">
+   366→                  {sequence.steps.map((st, i) => (
+   367→                    <span key={st.id} className="flex items-center gap-2">
+   368→                      {i > 0 && <HandArrow />}
+   369→                      <StepChip
+   370→                        step={st}
+   371→                        state={i < sequence.stepIndex ? "done" : i === sequence.stepIndex ? "current" : "ahead"}
+   372→                        remaining={i === sequence.stepIndex ? sequence.stepRemaining : undefined}
+   373→                      />
+   374→                    </span>
+   375→                  ))}
+   376→                </div>
+   377→
+   378→                {/* overall progress through the whole handover */}
+   379→                {(() => {
+   380→                  const totalSec = sequence.steps.reduce((a, st) => a + st.minutes * 60, 0);
+   381→                  const beforeSec = sequence.steps
+   382→                    .slice(0, sequence.stepIndex)
+   383→                    .reduce((a, st) => a + st.minutes * 60, 0);
+   384→                  const elapsed =
+   385→                    beforeSec + Math.max(0, sequence.steps[sequence.stepIndex].minutes * 60 - sequence.stepRemaining);
+   386→                  const overall = Math.min(100, Math.max(2, (elapsed / totalSec) * 100));
+   387→                  return (
+   388→                    <div className="mt-5">
+   389→                      <div className="h-1 overflow-hidden rounded-full bg-white/8">
+   390→                        <div
+   391→                          className="h-full rounded-full bg-gradient-to-r from-moon-200/50 to-moon-200 transition-[width] duration-1000 ease-linear"
+   392→                          style={{ width: `${overall}%` }}
+   393→                        />
+   394→                      </div>
+   395→                      <p className="mt-2 text-right font-mono text-[10px] text-mist-600">
+   396→                        {formatRemaining(Math.max(0, totalSec - elapsed))} of quiet left
+   397→                      </p>
+   398→                    </div>
+   399→                  );
+   400→                })()}
+   401→              </div>
+   402→            ) : (
+   403→              <>
+   404→                {/* ── premade sequences ── */}
+   405→                <div className="mt-4 grid gap-4 md:grid-cols-3">
+   406→                  {WIND_DOWN_SEQUENCES.map((seq) => (
+   407→                    <button
+   408→                      key={seq.id}
+   409→                      type="button"
+   410→                      onClick={() => startSequence(seq)}
+   411→                      data-seq-start={seq.id}
+   412→                      aria-label={`Start wind-down sequence ${seq.name}, ${totalSequenceMinutes(seq.steps)} minutes`}
+   413→                      className="group flex flex-col rounded-2xl bg-white/[0.02] p-5 text-left ring-1 ring-white/6 transition hover:bg-moon-200/[0.06] hover:ring-moon-200/30"
+   414→                    >
+   415→                      <span className="flex items-center justify-between gap-2">
+   416→                        <span className="font-serif text-base text-moon-100">{seq.name}</span>
+   417→                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-moon-200/10 text-moon-100 ring-1 ring-moon-200/25 transition group-hover:bg-moon-200 group-hover:text-night-950">
+   418→                          <Play className="ml-0.5 h-3 w-3 fill-current" aria-hidden="true" />
+   419→                        </span>
+   420→                      </span>
+   421→                      <span className="mt-3 flex flex-wrap items-center gap-1.5">
+   422→                        {seq.steps.map((st, i) => (
+   423→                          <span key={st.id} className="flex items-center gap-1.5">
+   424→                            {i > 0 && <HandArrow />}
+   425→                            <StepChip step={st} state="ahead" />
+   426→                          </span>
+   427→                        ))}
+   428→                      </span>
+   429→                      <span className="mt-3 font-mono text-[10px] uppercase tracking-widest text-mist-600">
+   430→                        {totalSequenceMinutes(seq.steps)} min total
+   431→                      </span>
+   432→                    </button>
+   433→                  ))}
+   434→                </div>
+   435→
+   436→                {/* ── your sequences shelf ── */}
+   437→                {customSequences.length > 0 && (
+   438→                  <div className="mt-5 space-y-2.5">
+   439→                    <p className="text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
+   440→                      your handovers
+   441→                    </p>
+   442→                    {customSequences.map((seq) => (
+   443→                      <div
+   444→                        key={seq.id}
+   445→                        className="group flex flex-wrap items-center justify-between gap-3 rounded-xl border border-moon-200/15 bg-moon-200/[0.05] px-4 py-3 transition hover:border-moon-200/35"
+   446→                      >
+   447→                        <button
+   448→                          type="button"
+   449→                          onClick={() => startSequence(seq)}
+   450→                          className="min-w-0 flex-1 text-left"
+   451→                          aria-label={`Start ${seq.name}`}
+   452→                        >
+   453→                          <span className="block text-sm text-moon-100">{seq.name}</span>
+   454→                          <span className="mt-1 flex flex-wrap items-center gap-1.5">
+   455→                            {seq.steps.map((st, i) => (
+   456→                              <span key={st.id} className="flex items-center gap-1.5">
+   457→                                {i > 0 && <HandArrow />}
+   458→                                <StepChip step={st} state="ahead" />
+   459→                              </span>
+   460→                            ))}
+   461→                          </span>
+   462→                        </button>
+   463→                        <button
+   464→                          type="button"
+   465→                          onClick={() => deleteSequence(seq.id)}
+   466→                          aria-label={`Delete sequence ${seq.name}`}
+   467→                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-mist-500 opacity-0 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300 focus-visible:opacity-100 group-hover:opacity-100"
+   468→                        >
+   469→                          <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+   470→                        </button>
+   471→                      </div>
+   472→                    ))}
+   473→                  </div>
+   474→                )}
+   475→
+   476→                {/* ── builder ── */}
+   477→                {building ? (
+   478→                  <form
+   479→                    onSubmit={(e) => {
+   480→                      e.preventDefault();
+   481→                      const saved = saveSequence(buildName, buildSteps);
+   482→                      if (saved) {
+   483→                        setBuildName("");
+   484→                        setBuildSteps([{ id: "b0", soundscape: "rain", minutes: 20 }]);
+   485→                        setBuilding(false);
+   486→                      }
+   487→                    }}
+   488→                    className="mt-4 rounded-2xl border border-moon-200/20 bg-white/[0.03] p-5"
+   489→                  >
+   490→                    <label htmlFor="seq-name" className="text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
+   491→                      name this handover
+   492→                    </label>
+   493→                    <input
+   494→                      id="seq-name"
+   495→                      value={buildName}
+   496→                      onChange={(e) => setBuildName(e.target.value)}
+   497→                      placeholder="Soft rain, then nothing…"
+   498→                      maxLength={32}
+   499→                      className="mt-2 w-full rounded-xl border border-white/10 bg-night-950/40 px-4 py-2.5 text-sm text-moon-100 outline-none transition placeholder:text-mist-600 focus:border-moon-200/40"
+   500→                    />
+   501→
+   502→                    <p className="mt-5 text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
+   503→                      the rooms, in order
+   504→                    </p>
+   505→                    <div className="mt-2 space-y-2">
+   506→                      {buildSteps.map((st, i) => (
+   507→                        <div key={st.id} className="flex items-center gap-2">
+   508→                          <span className="w-5 shrink-0 text-center font-mono text-[11px] text-mist-600">
+   509→                            {i + 1}
+   510→                          </span>
+   511→                          <div className="flex shrink-0 flex-col">
+   512→                            <button
+   513→                              type="button"
+   514→                              disabled={i === 0}
+   515→                              onClick={() =>
+   516→                                setBuildSteps((prev) => {
+   517→                                  const next = [...prev];
+   518→                                  [next[i - 1], next[i]] = [next[i], next[i - 1]];
+   519→                                  return next;
+   520→                                })
+   521→                              }
+   522→                              aria-label={`Move ${stepLabel(st.soundscape)} step ${i + 1} earlier`}
+   523→                              className="flex h-4 w-5 items-center justify-center text-mist-600 transition hover:text-moon-200 disabled:opacity-20 disabled:hover:text-mist-600"
+   524→                            >
+   525→                              <ChevronUp className="h-3.5 w-3.5" aria-hidden="true" />
+   526→                            </button>
+   527→                            <button
+   528→                              type="button"
+   529→                              disabled={i === buildSteps.length - 1}
+   530→                              onClick={() =>
+   531→                                setBuildSteps((prev) => {
+   532→                                  const next = [...prev];
+   533→                                  [next[i + 1], next[i]] = [next[i], next[i + 1]];
+   534→                                  return next;
+   535→                                })
+   536→                              }
+   537→                              aria-label={`Move ${stepLabel(st.soundscape)} step ${i + 1} later`}
+   538→                              className="flex h-4 w-5 items-center justify-center text-mist-600 transition hover:text-moon-200 disabled:opacity-20 disabled:hover:text-mist-600"
+   539→                            >
+   540→                              <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
+   541→                            </button>
+   542→                          </div>
+   543→                          <Select
+   544→                            value={st.soundscape}
+   545→                            onValueChange={(v) =>
+   546→                              setBuildSteps((prev) =>
+   547→                                prev.map((p) => (p.id === st.id ? { ...p, soundscape: v as SequenceSound } : p))
+   548→                              )
+   549→                            }
+   550→                          >
+   551→                            <SelectTrigger
+   552→                              aria-label={`Soundscape for step ${i + 1}`}
+   553→                              className="h-9 flex-1 rounded-xl border-white/10 bg-night-950/40 text-sm text-moon-100"
+   554→                            >
+   555→                              <SelectValue />
+   556→                            </SelectTrigger>
+   557→                            <SelectContent className="border-white/10 bg-night-900/95 text-moon-100">
+   558→                              {SOUNDSCAPES.map((sc) => (
+   559→                                <SelectItem key={sc.id} value={sc.id} className="text-sm">
+   560→                                  {sc.name}
+   561→                                </SelectItem>
+   562→                              ))}
+   563→                              <SelectItem value="silence" className="text-sm">
+   564→                                {SILENCE_LABEL}
+   565→                              </SelectItem>
+   566→                            </SelectContent>
+   567→                          </Select>
+   568→                          <div className="glass-chip flex shrink-0 items-center gap-1 rounded-xl px-3 py-1.5">
+   569→                            <input
+   570→                              type="number"
+   571→                              min={STEP_MIN_MINUTES}
+   572→                              max={STEP_MAX_MINUTES}
+   573→                              value={st.minutes}
+   574→                              onChange={(e) =>
+   575→                                setBuildSteps((prev) =>
+   576→                                  prev.map((p) =>
+   577→                                    p.id === st.id
+   578→                                      ? { ...p, minutes: clampStepMinutes(Number(e.target.value)) }
+   579→                                      : p
+   580→                                  )
+   581→                                )
+   582→                              }
+   583→                              aria-label={`Minutes for step ${i + 1}`}
+   584→                              className="w-10 bg-transparent text-right font-mono text-sm text-moon-100 outline-none [color-scheme:dark]"
+   585→                            />
+   586→                            <span className="text-[11px] text-mist-500">min</span>
+   587→                          </div>
+   588→                          {buildSteps.length > 1 && (
+   589→                            <button
+   590→                              type="button"
+   591→                              onClick={() => setBuildSteps((prev) => prev.filter((p) => p.id !== st.id))}
+   592→                              aria-label={`Remove step ${i + 1}`}
+   593→                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-mist-500 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-300"
+   594→                            >
+   595→                              <X className="h-3.5 w-3.5" aria-hidden="true" />
+   596→                            </button>
+   597→                          )}
+   598→                        </div>
+   599→                      ))}
+   600→                    </div>
+   601→
+   602→                    <div className="mt-4 flex flex-wrap items-center gap-2">
+   603→                      {buildSteps.length < SEQUENCE_MAX_STEPS && (
+   604→                        <button
+   605→                          type="button"
+   606→                          onClick={() =>
+   607→                            setBuildSteps((prev) => [
+   608→                              ...prev,
+   609→                              {
+   610→                                id: `b${Date.now().toString(36)}`,
+   611→                                soundscape: "silence",
+   612→                                minutes: 10,
+   613→                              },
+   614→                            ])
+   615→                          }
+   616→                          className="flex items-center gap-1.5 rounded-xl border border-dashed border-white/12 px-3.5 py-2 text-xs text-mist-400 transition hover:border-moon-200/30 hover:text-moon-100"
+   617→                        >
+   618→                          <Plus className="h-3 w-3" aria-hidden="true" /> add a room
+   619→                        </button>
+   620→                      )}
+   621→                      <span className="ml-auto flex items-center gap-2">
+   622→                        <button
+   623→                          type="button"
+   624→                          onClick={() => {
+   625→                            setBuilding(false);
+   626→                            setBuildName("");
+   627→                          }}
+   628→                          className="rounded-full px-4 py-2 text-xs text-mist-400 transition hover:text-moon-100"
+   629→                        >
+   630→                          Cancel
+   631→                        </button>
+   632→                        <button
+   633→                          type="submit"
+   634→                          disabled={!buildName.trim()}
+   635→                          className="flex items-center gap-1.5 rounded-full bg-moon-200 px-4 py-2 text-xs font-medium text-night-950 transition hover:bg-moon-100 disabled:opacity-30"
+   636→                        >
+   637→                          <Check className="h-3.5 w-3.5" aria-hidden="true" /> keep it
+   638→                        </button>
+   639→                      </span>
+   640→                    </div>
+   641→                  </form>
+   642→                ) : (
+   643→                  <button
+   644→                    type="button"
+   645→                    onClick={() => setBuilding(true)}
+   646→                    className="mt-4 flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-white/10 px-4 py-3 text-xs text-mist-400 transition hover:border-moon-200/30 hover:text-moon-100"
+   647→                  >
+   648→                    <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+   649→                    compose your own handover
+   650→                  </button>
+   651→                )}
+   652→              </>
+   653→            )}
+   654→          </div>
+   655→        </div>
+   656→      </div>
+   657→    </section>
+   658→  );
+   659→}
+   660→

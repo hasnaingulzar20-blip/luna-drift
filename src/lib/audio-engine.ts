@@ -13,7 +13,8 @@ export type SoundscapeId =
   | "cafe"
   | "fireplace"
   | "piano"
-  | "train";
+  | "train"
+  | "bowls";
 
 export type MixLayerId = "rain" | "wind" | "fire";
 
@@ -788,6 +789,115 @@ const buildTrain: Builder = (ctx, out) => {
   };
 };
 
+/* one struck singing bowl: inharmonic partials with long decay + gentle beating */
+function strikeBowl(ctx: AudioContext, out: AudioNode, baseFreq: number, velocity = 1) {
+  const t = ctx.currentTime;
+  const pan = ctx.createStereoPanner?.();
+  const destination = pan ? (pan.connect(out), pan) : out;
+  if (pan) pan.pan.value = rnd(-0.55, 0.55);
+
+  // classic bowl mode ratios (inharmonic, slightly stretched)
+  const modes: [number, number, number][] = [
+    // [ratio, gain, decaySeconds]
+    [1, 1, rnd(9, 13)],
+    [2.71, 0.42, rnd(7, 10)],
+    [5.18, 0.2, rnd(5, 8)],
+    [8.9, 0.09, rnd(3.5, 5.5)],
+  ];
+
+  modes.forEach(([ratio, gain, decay]) => {
+    // two slightly detuned oscillators per mode → slow audible beating
+    const beat = ratio === 1 ? rnd(0.6, 1.4) : rnd(1, 2.2);
+    for (const detune of [-beat, beat]) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = baseFreq * ratio;
+      osc.detune.value = detune * 100 * 0.06; // cents — a whisper off pitch
+      const g = ctx.createGain();
+      const amp = gain * velocity * 0.05;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(Math.max(amp, 0.0002), t + rnd(0.03, 0.12));
+      g.gain.exponentialRampToValueAtTime(0.0001, t + decay);
+      osc.connect(g).connect(destination);
+      osc.start(t);
+      osc.stop(t + decay + 0.1);
+    }
+  });
+
+  // the mallet touch itself — a soft filtered knock
+  burst(ctx, destination, {
+    filter: { type: "bandpass", freq: baseFreq * 2.4, q: 1.4 },
+    gain: 0.05 * velocity,
+    decay: 0.14,
+  });
+}
+
+const buildBowls: Builder = (ctx, out) => {
+  const timers = new Timers();
+  const s: Sources = { nodes: [] };
+
+  // warm dark drone beneath everything (root + fifth, slow beating)
+  [110, 164.8].forEach((f, i) => {
+    for (const detune of [-4, 4]) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = f;
+      osc.detune.value = detune;
+      const g = ctx.createGain();
+      g.gain.value = i === 0 ? 0.028 : 0.016;
+      const lfo = ctx.createOscillator();
+      lfo.frequency.value = rnd(0.05, 0.09);
+      const lfoAmt = ctx.createGain();
+      lfoAmt.gain.value = g.gain.value * 0.45;
+      lfo.connect(lfoAmt).connect(g.gain);
+      osc.connect(g).connect(out);
+      osc.start();
+      lfo.start();
+      s.nodes.push(osc, lfo);
+    }
+  });
+
+  // faint stone-room shimmer: high-passed pink noise breathing
+  const air = noiseSource(ctx, s, "pink");
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 2400;
+  const aGain = ctx.createGain();
+  aGain.gain.value = 0.012;
+  air.connect(hp).connect(aGain).connect(out);
+  const aLfo = ctx.createOscillator();
+  aLfo.frequency.value = 0.06;
+  const aLfoAmt = ctx.createGain();
+  aLfoAmt.gain.value = 0.007;
+  aLfo.connect(aLfoAmt).connect(aGain.gain);
+  aLfo.start();
+  s.nodes.push(aLfo);
+
+  // the bowls themselves — one every 9–16 s, occasionally a soft double-tap
+  const bowlNotes = [196, 220, 261.6, 293.7, 349.2, 392];
+  let lastNote = -1;
+  const scheduleBowl = () => {
+    let idx = Math.floor(Math.random() * bowlNotes.length);
+    if (idx === lastNote) idx = (idx + 1) % bowlNotes.length;
+    lastNote = idx;
+    strikeBowl(ctx, out, bowlNotes[idx], rnd(0.75, 1.1));
+    if (Math.random() < 0.22) {
+      timers.after(rnd(700, 1300), () => strikeBowl(ctx, out, bowlNotes[idx] * 1.5, 0.4));
+    }
+    timers.after(rnd(9000, 16000), scheduleBowl);
+  };
+  timers.after(rnd(400, 1200), scheduleBowl);
+
+  return () => {
+    timers.dispose();
+    s.nodes.forEach((n) => {
+      try {
+        n.stop();
+      } catch { /* noop */ }
+    });
+  };
+};
+
 const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   rain: buildRain,
   forest: buildForest,
@@ -796,6 +906,7 @@ const BASE_BUILDERS: Record<SoundscapeId, Builder> = {
   fireplace: buildFire,
   piano: buildPiano,
   train: buildTrain,
+  bowls: buildBowls,
 };
 
 const MIX_BUILDERS: Record<MixLayerId, Builder> = {

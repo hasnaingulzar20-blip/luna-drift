@@ -1,7 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Clock3, Download, FileDown, Flame, MoonStar, Sparkles, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ClipboardCheck,
+  ClipboardCopy,
+  Clock3,
+  Download,
+  FileDown,
+  Flame,
+  MoonStar,
+  Sparkles,
+  TrendingUp,
+} from "lucide-react";
 import { getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 import { downloadNightCard } from "@/lib/night-card";
 import DreamNotes from "./dream-notes";
@@ -22,11 +34,18 @@ interface InsightData {
   topSoundscapeMinutes: number;
 }
 
+interface MonthCell {
+  date: string;
+  day: string;
+  minutes: number;
+}
+
 interface ProfileData {
   streak: number;
   totalMinutes: number;
   week: { day: string; minutes: number }[];
-  month?: { date: string; day: string; minutes: number }[];
+  month?: MonthCell[];
+  monthOffset?: number;
   recent: SessionRow[];
   insights?: InsightData;
 }
@@ -80,31 +99,104 @@ async function exportLedger() {
   }
 }
 
+/** build the gentle weekly digest text and copy it to the clipboard */
+function buildDigest(data: ProfileData): string {
+  const week = data.week ?? [];
+  const nights = week.filter((d) => d.minutes > 0).length;
+  const weekTotal = week.reduce((sum, d) => sum + d.minutes, 0);
+  const best = week.reduce<{ day: string; minutes: number } | null>(
+    (b, d) => (d.minutes > 0 && (!b || d.minutes > b.minutes) ? d : b),
+    null
+  );
+  const hours = Math.floor(data.totalMinutes / 60);
+  const rest = data.totalMinutes % 60;
+  const top = data.insights?.topSoundscape ? prettyName(data.insights.topSoundscape) : null;
+  const lines = [
+    "the week that was — Luna Drift",
+    `· ${nights} night${nights === 1 ? "" : "s"} with rest`,
+  ];
+  if (best) lines.push(`· best night ${best.day}, ${best.minutes} min`);
+  if (top) lines.push(`· most heard: ${top}`);
+  if (data.streak > 0) lines.push(`· a ${data.streak}-night streak, still burning`);
+  lines.push(`· ${hours}h ${rest}m altogether`);
+  if (weekTotal > 0) lines.push(`· ${weekTotal} min this week`);
+  return lines.join("\n");
+}
+
 export default function Journal() {
   const [data, setData] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [digestCopied, setDigestCopied] = useState(false);
 
-  const load = useCallback(async () => {
+  const copyDigest = useCallback(async () => {
+    if (!data || (data.insights?.sessions ?? 0) === 0) return;
+    const text = buildDigest(data);
     try {
-      const res = await fetch("/api/profile", { cache: "no-store" });
-      if (res.ok) setData(await res.json());
+      await navigator.clipboard.writeText(text);
     } catch {
-      /* keep last known */
-    } finally {
-      setLoading(false);
+      // clipboard API can be shy — fall back to a hidden textarea
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch {
+        /* give quietly */
+      }
+      ta.remove();
     }
-  }, []);
+    setDigestCopied(true);
+    window.setTimeout(() => setDigestCopied(false), 2200);
+  }, [data]);
+
+  const load = useCallback(
+    async (offset: number) => {
+      try {
+        const res = await fetch(`/api/profile?monthOffset=${offset}`, { cache: "no-store" });
+        if (res.ok) {
+          const json = (await res.json()) as ProfileData;
+          setData((prev) =>
+            offset === 0 || !prev
+              ? json
+              : // navigating: swap only the constellation, keep stats anchored to tonight
+                { ...prev, month: json.month, monthOffset: json.monthOffset }
+          );
+        }
+      } catch {
+        /* keep last known */
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    void load();
-    const onRecorded = () => void load();
+    void load(monthOffset);
+  }, [load, monthOffset]);
+
+  useEffect(() => {
+    const onRecorded = () => void load(monthOffset);
     window.addEventListener("luna:session-recorded", onRecorded);
     return () => window.removeEventListener("luna:session-recorded", onRecorded);
-  }, [load]);
+  }, [load, monthOffset]);
 
   const maxWeek = Math.max(30, ...(data?.week.map((d) => d.minutes) ?? [0]));
   const totalHours = data ? Math.floor(data.totalMinutes / 60) : 0;
   const restMinutes = data ? data.totalMinutes % 60 : 0;
+
+  const monthCells = data?.month ?? [];
+  const monthHasData = monthCells.length === 35;
+  const monthTotal = monthCells.reduce((sum, d) => sum + d.minutes, 0);
+  const monthNights = monthCells.filter((d) => d.minutes > 0).length;
+  const windowRange =
+    monthHasData && monthCells.length > 1
+      ? `${monthCells[0].date} — ${monthCells[monthCells.length - 1].date}`
+      : null;
 
   // sparkline geometry — the shape of the week, drawn over a quiet axis
   const weekData = data?.week ?? [];
@@ -166,6 +258,25 @@ export default function Journal() {
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">night card</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => void copyDigest()}
+              disabled={!data || (data.insights?.sessions ?? 0) === 0}
+              className="flex h-10 shrink-0 items-center gap-2 rounded-full border border-white/12 px-4 text-xs text-mist-300 transition hover:border-moon-200/40 hover:text-moon-100 disabled:cursor-not-allowed disabled:opacity-30"
+              aria-label="Copy a weekly digest as text"
+              title={
+                data && (data.insights?.sessions ?? 0) > 0
+                  ? "Copy a gentle summary of your week"
+                  : "No drifts recorded yet"
+              }
+            >
+              {digestCopied ? (
+                <ClipboardCheck className="h-3.5 w-3.5 text-moon-300" aria-hidden="true" />
+              ) : (
+                <ClipboardCopy className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              <span className="hidden sm:inline">{digestCopied ? "copied" : "digest"}</span>
             </button>
             <button
               type="button"
@@ -415,9 +526,37 @@ export default function Journal() {
               className="pointer-events-none absolute -left-10 -top-14 h-44 w-44 rounded-full bg-[radial-gradient(circle,rgba(236,226,200,0.06),transparent_70%)]"
             />
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs uppercase tracking-widest text-mist-400">
-                the last five weeks, night by night
-              </p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs uppercase tracking-widest text-mist-400">
+                  {monthOffset === 0 ? "the last five weeks, night by night" : "another stretch of sky"}
+                </p>
+                {windowRange && (
+                  <span className="rounded-full bg-white/[0.04] px-2.5 py-1 font-mono text-[10px] text-mist-400 ring-1 ring-white/8">
+                    {windowRange}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* window navigation — wander back through older skies */}
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset((o) => Math.min(11, o + 1))}
+                  disabled={monthOffset >= 11}
+                  aria-label="Show the previous five weeks"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-mist-400 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100 disabled:cursor-not-allowed disabled:opacity-25"
+                >
+                  <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMonthOffset((o) => Math.max(0, o - 1))}
+                  disabled={monthOffset === 0}
+                  aria-label="Show the five weeks closer to tonight"
+                  className="flex h-8 w-8 items-center justify-center rounded-full text-mist-400 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100 disabled:cursor-not-allowed disabled:opacity-25"
+                >
+                  <ChevronRight className="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
               {/* legend */}
               <div className="flex items-center gap-4 text-[10px] text-mist-500" aria-hidden="true">
                 <span className="flex items-center gap-1.5">
@@ -435,7 +574,7 @@ export default function Journal() {
             {(() => {
               const month = data.month;
               const maxMonth = Math.max(30, ...month.map((d) => d.minutes));
-              const todayIdx = month.length - 1;
+              const todayIdx = monthOffset === 0 ? month.length - 1 : -1;
               const colLabels = month.slice(0, 7).map((d) => d.day);
               return (
                 <>
@@ -456,16 +595,15 @@ export default function Journal() {
                       const size = d.minutes > 0 ? 5 + intensity * 10 : 5;
                       const isToday = i === todayIdx;
                       return (
-                        <div key={i} className="flex items-center justify-center">
+                        <div key={i} className="group flex items-center justify-center">
                           <span
                             className={`relative flex h-9 w-9 items-center justify-center rounded-full transition-all duration-700 ${
                               isToday ? "ring-1 ring-moon-200/40" : ""
                             }`}
-                            title={`${d.date} — ${d.minutes > 0 ? `${d.minutes} min of rest` : "a silent night"}`}
                           >
                             {d.minutes > 0 ? (
                               <span
-                                className={`block rounded-full bg-moon-200 transition-all duration-700 ${isToday ? "animate-pulse" : ""}`}
+                                className={`block rounded-full bg-moon-200 transition-all duration-700 group-hover:scale-125 ${isToday ? "animate-pulse" : ""}`}
                                 style={{
                                   width: `${size}px`,
                                   height: `${size}px`,
@@ -474,7 +612,7 @@ export default function Journal() {
                                 }}
                               />
                             ) : (
-                              <span className="block h-1.5 w-1.5 rounded-full ring-1 ring-white/20" />
+                              <span className="block h-1.5 w-1.5 rounded-full ring-1 ring-white/20 transition-transform duration-500 group-hover:scale-150 group-hover:ring-white/45" />
                             )}
                             {isToday && (
                               <span
@@ -482,14 +620,25 @@ export default function Journal() {
                                 className="absolute inset-0 rounded-full border border-moon-200/25"
                               />
                             )}
+                            {/* quiet tooltip — surfaces on hover */}
+                            <span
+                              aria-hidden="true"
+                              className="pointer-events-none absolute -top-9 z-10 whitespace-nowrap rounded-lg bg-night-950/95 px-2.5 py-1 font-mono text-[10px] text-moon-100 opacity-0 shadow-[0_4px_18px_rgba(0,0,0,0.5)] ring-1 ring-white/10 transition-all duration-300 group-hover:-translate-y-0.5 group-hover:opacity-100"
+                            >
+                              {d.date} · {d.minutes > 0 ? `${d.minutes}m` : "silent"}
+                            </span>
                           </span>
                         </div>
                       );
                     })}
                   </div>
                   <p className="mt-4 text-[11px] leading-relaxed text-mist-500">
-                    each star is a night — the brighter it burns, the longer the drift. tonight
-                    keeps a small ring.
+                    each star is a night — the brighter it burns, the longer the drift.
+                    {monthOffset === 0
+                      ? " tonight keeps a small ring."
+                      : monthTotal > 0
+                        ? ` ${monthNights} night${monthNights === 1 ? "" : "s"} with rest · ${Math.floor(monthTotal / 60)}h ${monthTotal % 60}m in this stretch of sky.`
+                        : " no drifts lit this stretch of sky."}
                   </p>
                 </>
               );

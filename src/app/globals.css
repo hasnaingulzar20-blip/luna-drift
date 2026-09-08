@@ -128,6 +128,20 @@
     background: rgba(205, 180, 124, 0.28);
     color: #f6f1e2;
   }
+  /* cinematic depth — the corners of the night fall away into darkness */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+    background: radial-gradient(
+      125% 95% at 50% 42%,
+      transparent 55%,
+      rgba(2, 4, 12, 0.42) 86%,
+      rgba(1, 2, 8, 0.62) 100%
+    );
+  }
 }
 
 /* ── custom scrollbar ─────────────────────────────────── */
@@ -265,10 +279,20 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   100% { transform: scale(1.6); opacity: 0; }
 }
 
+@keyframes ripple-out {
+  0% { transform: scale(0.72); opacity: 0.5; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
 .anim-drift { animation: drift-slow 26s ease-in-out infinite; }
 .anim-breathe { animation: breathe 7s ease-in-out infinite; }
 .anim-float { animation: float-y 9s ease-in-out infinite; }
 .anim-spin-slower { animation: spin-slower 90s linear infinite; }
+.anim-ripple { animation: ripple-out 2.2s cubic-bezier(0.22, 0.61, 0.36, 1) forwards; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-ripple { animation: none; opacity: 0; }
+}
 
 /* ── quiet keys & moonlit focus ────────────────────────── */
 /* selection tinted like moonlight on paper */
@@ -276,9 +300,8 @@ input[type="time"]::-webkit-calendar-picker-indicator {
   background: rgba(236, 226, 200, 0.24);
   color: #f7f3e8;
 }
-::selection:window-inactive {
-  background: rgba(236, 226, 200, 0.15);
-}
+/* note: the WebKit-only `::selection:window-inactive` tint was dropped —
+   Lightning CSS rejects the non-standard pseudo-class at build time */
 
 /* a soft moon-colored outline for keyboard wanderers */
 :where(a, button, [role="button"], [role="tab"], input, select, textarea, summary, [tabindex]):focus-visible {

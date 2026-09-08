@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { dayKey, ensureProfile, recalcStreak } from "@/lib/journal";
 
-const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "mix"]);
+const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "bowls", "mix"]);
 
 /** the whole ledger, newest first — feeds the CSV export in the journal */
 export async function GET() {
