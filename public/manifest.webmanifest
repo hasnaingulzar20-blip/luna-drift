@@ -1,13 +1,18 @@
 {
+  "id": "/",
   "name": "Luna Drift — Sleep Meditation & Ambient Soundscapes",
   "short_name": "Luna Drift",
   "description": "Drift into deep sleep with looping ambient soundscapes, narrated sleep stories, a layered sound mixer, and a gentle sleep timer with fade-out.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#04060f",
   "theme_color": "#04060f",
   "orientation": "portrait-primary",
+  "lang": "en",
+  "dir": "ltr",
   "categories": ["health", "lifestyle", "music"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -26,6 +31,52 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/narrow.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "The night sky with tonight's soundscape"
+    },
+    {
+      "src": "/screenshots/wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Luna Drift on a wider night"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Rain on Glass",
+      "short_name": "Rain",
+      "url": "/?sc=rain",
+      "description": "Begin drifting with the rain-on-glass room",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Slow Tide",
+      "short_name": "Ocean",
+      "url": "/?sc=ocean",
+      "description": "Begin drifting with the slow-tide room",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Hearth & Ember",
+      "short_name": "Hearth",
+      "url": "/?sc=fireplace",
+      "description": "Begin drifting with the hearth room",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Tonight's Pick",
+      "short_name": "Tonight",
+      "url": "/?sc=pick",
+      "description": "Begin tonight's pick straight away",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }

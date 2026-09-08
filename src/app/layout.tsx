@@ -61,6 +61,8 @@ export const viewport: Viewport = {
   themeColor: "#04060f",
   width: "device-width",
   initialScale: 1,
+  // let the sky reach under the gesture bar / notch on phones
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

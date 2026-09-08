@@ -383,3 +383,37 @@ input[type="number"]::-webkit-inner-spin-button {
 /* round-11 weather & story shine */
 
 /* wl re-emit 1788886819 */
+
+/* ── android & touch polish (round 13) ─────────────────── */
+/* no grey flash on taps — the night answers in its own colors */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+/* no accidental pull-to-refresh while fumbling for the timer at 3am */
+html {
+  overscroll-behavior-y: none;
+}
+/* kill the double-tap zoom delay on the controls fingers actually use */
+button,
+[role="button"],
+a,
+summary,
+input[type="range"] {
+  touch-action: manipulation;
+}
+/* thumbs grow for fingers — slider tracks keep their look, hits get honest */
+@media (pointer: coarse) {
+  [data-slot="slider-thumb"] {
+    height: 26px !important;
+    width: 26px !important;
+  }
+  [data-slot="slider-thumb"]:hover {
+    transform: none;
+  }
+}
+/* room for the gesture bar in standalone mode */
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* r13 css re-emit 1788887200 */

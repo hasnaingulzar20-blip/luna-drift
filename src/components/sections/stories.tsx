@@ -106,6 +106,40 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     };
   }, []);
 
+  // keep the screen awake while the voice carries the story —
+  // on a phone the display would otherwise dim mid-sentence
+  useEffect(() => {
+    if (!narrating) return;
+    type WakeSentinel = { release: () => Promise<void> };
+    const wakeLock = (
+      navigator as Navigator & {
+        wakeLock?: { request: (type: "screen") => Promise<WakeSentinel> };
+      }
+    ).wakeLock;
+    if (!wakeLock) return;
+
+    let sentinel: WakeSentinel | null = null;
+    const acquire = async () => {
+      try {
+        sentinel = await wakeLock.request("screen");
+      } catch {
+        /* denied or unsupported — the screen may drift */
+      }
+    };
+    void acquire();
+    // the OS releases the lock whenever the tab hides; ask again on return
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void acquire();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      const held = sentinel;
+      sentinel = null;
+      if (held) void held.release().catch(() => {});
+    };
+  }, [narrating]);
+
   // remember where the story was left, and offer to pick it back up.
   // wired as element props (not addEventListener): this component mounts
   // with the page, long before the dialog's <audio> ever exists

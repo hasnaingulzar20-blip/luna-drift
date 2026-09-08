@@ -6,6 +6,9 @@ import MoonArc from "@/components/atmosphere/moon-arc";
 import CursorTrail from "@/components/atmosphere/cursor-trail";
 import TimerTicker from "@/components/atmosphere/timer-ticker";
 import MediaSessionBridge from "@/components/atmosphere/media-session";
+import SwRegister from "@/components/atmosphere/sw-register";
+import InstallPrompt from "@/components/atmosphere/install-prompt";
+import DeepLink from "@/components/atmosphere/deep-link";
 import WakeLight from "@/components/atmosphere/wake-light";
 import Grain from "@/components/atmosphere/grain";
 import Reveal from "@/components/atmosphere/reveal";
@@ -88,6 +91,7 @@ export default function Home() {
       <CursorTrail />
       <TimerTicker />
       <MediaSessionBridge />
+      <SwRegister />
       <Grain />
 
       {/* ── the interface (fades away in immersion) ── */}
@@ -132,6 +136,12 @@ export default function Home() {
 
       {/* an interrupted drift, offering to continue */}
       <RestoreChip />
+
+      {/* a room that drifted in with the link — android shortcuts land here */}
+      <DeepLink />
+
+      {/* the night, installable */}
+      <InstallPrompt />
 
       {/* the usual drift hour, honored when it returns */}
       <WakeWindowNudge />
