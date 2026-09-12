@@ -63,3 +63,5 @@ dev.pid
 
 # backup tar (not part of the project)
 /workspace-
+.vercel
+.env*
