@@ -7,9 +7,10 @@
  *  · app media        → stale-while-revalidate: covers, narration and icons,
  *                       once heard, keep playing with no signal at all
  *  · /api/            → network only, the ledger belongs to the living web
+ *  · range requests   → bypass cache (browsers stream audio/video this way)
  */
 
-const VERSION = "luna-v13";
+const VERSION = "luna-v14";
 const SHELL_CACHE = `${VERSION}-shell`;
 const MEDIA_CACHE = `${VERSION}-media`;
 
@@ -89,6 +90,10 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return; // never touch the cross-origin night
   if (url.pathname.startsWith("/api/")) return; // the ledger stays live
+
+  // range requests (audio/video streaming) must bypass the cache entirely
+  // — cache.match can't satisfy partial-content requests
+  if (request.headers.get("range")) return;
 
   // covers, narration, icons — kept forever once fetched, refreshed quietly
   if (
