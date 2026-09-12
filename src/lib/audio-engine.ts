@@ -1101,13 +1101,13 @@ export class AudioEngine {
     if (this.baseId === id && this.base) return;
     if (this.base) {
       const old = this.base;
-      old.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.9);
+      // immediately silence and dispose the old base — no lingering overlap
+      try { old.gain.gain.cancelScheduledValues(ctx.currentTime); } catch { /* noop */ }
+      old.gain.gain.setTargetAtTime(0.0001, ctx.currentTime, 0.3);
       setTimeout(() => {
         old.dispose();
-        try {
-          old.gain.disconnect();
-        } catch { /* noop */ }
-      }, 4200);
+        try { old.gain.disconnect(); } catch { /* noop */ }
+      }, 800);
     }
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, ctx.currentTime);
