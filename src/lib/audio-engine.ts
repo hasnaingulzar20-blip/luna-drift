@@ -743,15 +743,15 @@ const buildTrain: Builder = (ctx, out) => {
   let period = rnd(1650, 1850);
   const scheduleClack = () => {
     burst(ctx, out, {
-      filter: { type: "bandpass", freq: rnd(700, 1000), q: 1.2 },
-      gain: rnd(0.06, 0.12),
-      decay: 0.09,
+      filter: { type: "bandpass", freq: rnd(1400, 2200), q: 1.5 },
+      gain: rnd(0.15, 0.25),
+      decay: 0.12,
     });
     timers.after(rnd(110, 150), () =>
       burst(ctx, out, {
-        filter: { type: "bandpass", freq: rnd(600, 900), q: 1.2 },
-        gain: rnd(0.05, 0.09),
-        decay: 0.08,
+        filter: { type: "bandpass", freq: rnd(1000, 1600), q: 1.5 },
+        gain: rnd(0.12, 0.2),
+        decay: 0.1,
       })
     );
     timers.after(period, scheduleClack);
@@ -964,8 +964,8 @@ const buildSnow: Builder = (ctx, out) => {
   const whump = () => {
     burst(ctx, out, {
       kind: "brown",
-      filter: { type: "lowpass", freq: rnd(180, 320) },
-      gain: rnd(0.10, 0.16),
+      filter: { type: "lowpass", freq: rnd(280, 480) },
+      gain: rnd(0.22, 0.34),
       attack: 0.22,
       decay: rnd(0.9, 1.6),
     });
@@ -974,16 +974,16 @@ const buildSnow: Builder = (ctx, out) => {
       timers.after(rnd(700, 1600), () =>
         burst(ctx, out, {
           kind: "brown",
-          filter: { type: "lowpass", freq: rnd(140, 260) },
-          gain: rnd(0.05, 0.08),
+          filter: { type: "lowpass", freq: rnd(200, 360) },
+          gain: rnd(0.12, 0.18),
           attack: 0.3,
           decay: rnd(0.8, 1.3),
         })
       );
     }
-    timers.after(rnd(20000, 46000), whump);
+    timers.after(rnd(14000, 26000), whump);
   };
-  timers.after(rnd(9000, 18000), whump);
+  timers.after(rnd(6000, 12000), whump);
 
   // a rare icy tick — a crystal settling on the cold pane
   const tickle = () => {
@@ -992,8 +992,8 @@ const buildSnow: Builder = (ctx, out) => {
     pan.connect(out);
     tone(ctx, pan, {
       type: "sine",
-      freq: rnd(1900, 3400),
-      gain: rnd(0.012, 0.022),
+      freq: rnd(2400, 4200),
+      gain: rnd(0.025, 0.045),
       decay: rnd(0.25, 0.6),
     });
     timers.after(1200, () => {
@@ -1001,9 +1001,9 @@ const buildSnow: Builder = (ctx, out) => {
         pan.disconnect();
       } catch { /* noop */ }
     });
-    timers.after(rnd(17000, 40000), tickle);
+    timers.after(rnd(10000, 25000), tickle);
   };
-  timers.after(rnd(12000, 26000), tickle);
+  timers.after(rnd(8000, 18000), tickle);
 
   return () => {
     timers.dispose();
