@@ -112,8 +112,7 @@ function burst(
 ) {
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
-  src.buffer = makeNoiseBuffer(ctx, opts.kind ?? "white", 1);
-  src.loop = true;
+  src.buffer = makeNoiseBuffer(ctx, opts.kind ?? "white", opts.decay + 0.5);
   const f = ctx.createBiquadFilter();
   f.type = opts.filter.type;
   f.frequency.value = opts.filter.freq;
@@ -124,7 +123,7 @@ function burst(
   g.gain.exponentialRampToValueAtTime(0.0001, t + opts.decay);
   src.connect(f).connect(g).connect(out);
   src.start(t);
-  src.stop(t + opts.decay + 0.05);
+  src.stop(t + opts.decay + 0.1);
 }
 
 /* one tonal ping with pitch envelope (birds, clinks, hoots, notes…) */
