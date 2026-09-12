@@ -122,7 +122,7 @@ function burst(
   g.gain.exponentialRampToValueAtTime(Math.max(opts.gain, 0.0002), t + (opts.attack ?? 0.004));
   g.gain.exponentialRampToValueAtTime(0.0001, t + opts.decay);
   src.connect(f).connect(g).connect(out);
-  src.start(t, rnd(0, 2));
+  src.start(t, rnd(0, 0.2));
   src.stop(t + opts.decay + 0.05);
 }
 
