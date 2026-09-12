@@ -710,9 +710,9 @@ const buildTrain: Builder = (ctx, out) => {
   const rumble = noiseSource(ctx, s, "brown");
   const rLp = ctx.createBiquadFilter();
   rLp.type = "lowpass";
-  rLp.frequency.value = 110;
+  rLp.frequency.value = 140;
   const rGain = ctx.createGain();
-  rGain.gain.value = 0.17;
+  rGain.gain.value = 0.3;
   rumble.connect(rLp).connect(rGain).connect(out);
 
   // the whole car gently rocking
@@ -727,9 +727,9 @@ const buildTrain: Builder = (ctx, out) => {
   const wind = noiseSource(ctx, s, "pink");
   const wLp = ctx.createBiquadFilter();
   wLp.type = "lowpass";
-  wLp.frequency.value = 760;
+  wLp.frequency.value = 1200;
   const wGain = ctx.createGain();
-  wGain.gain.value = 0.09;
+  wGain.gain.value = 0.15;
   wind.connect(wLp).connect(wGain).connect(out);
   const wLfo = ctx.createOscillator();
   wLfo.frequency.value = 0.07;
@@ -915,9 +915,9 @@ const buildSnow: Builder = (ctx, out) => {
   const hush = noiseSource(ctx, s, "brown");
   const hushLp = ctx.createBiquadFilter();
   hushLp.type = "lowpass";
-  hushLp.frequency.value = 380;
+  hushLp.frequency.value = 520;
   const hushGain = ctx.createGain();
-  hushGain.gain.value = 0.14;
+  hushGain.gain.value = 0.28;
   hush.connect(hushLp).connect(hushGain).connect(out);
   // the blanket itself breathes, very slowly
   const hushLfo = ctx.createOscillator();
@@ -935,7 +935,7 @@ const buildSnow: Builder = (ctx, out) => {
   windBp.frequency.value = 300;
   windBp.Q.value = 0.7;
   const windGain = ctx.createGain();
-  windGain.gain.value = 0.06;
+  windGain.gain.value = 0.12;
   const windPan = ctx.createStereoPanner();
   wind.connect(windBp).connect(windGain).connect(windPan).connect(out);
   const windWander = ctx.createOscillator();
