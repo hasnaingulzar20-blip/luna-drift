@@ -19,6 +19,8 @@ import WakeWindowNudge from "@/components/atmosphere/wake-window-nudge";
 import NightCapHint from "@/components/atmosphere/night-cap-hint";
 import SharedMixBanner from "@/components/atmosphere/shared-mix";
 import SharedSequenceBanner from "@/components/atmosphere/shared-sequence";
+import CookieBanner from "@/components/atmosphere/cookie-banner";
+import AdSlot from "@/components/atmosphere/ad-slot";
 import SiteHeader from "@/components/sections/site-header";
 import Hero from "@/components/sections/hero";
 import Library from "@/components/sections/library";
@@ -124,6 +126,9 @@ export default function Home() {
           <Reveal delay={40}>
             <Journal />
           </Reveal>
+          <Reveal delay={40}>
+            <AdSlot slot="0000000000" className="max-w-3xl px-4" />
+          </Reveal>
         </main>
 
         <SiteFooter />
@@ -160,6 +165,9 @@ export default function Home() {
 
       {/* the dawn, when it comes */}
       <WakeLight />
+
+      {/* cookie consent — first visit only */}
+      <CookieBanner />
 
       {/* screen-reader summary of ambient state */}
       <p className="sr-only" aria-live="polite">
