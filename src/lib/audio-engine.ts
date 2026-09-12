@@ -112,7 +112,8 @@ function burst(
 ) {
   const t = ctx.currentTime;
   const src = ctx.createBufferSource();
-  src.buffer = makeNoiseBuffer(ctx, opts.kind ?? "white", 0.25);
+  src.buffer = makeNoiseBuffer(ctx, opts.kind ?? "white", 1);
+  src.loop = true;
   const f = ctx.createBiquadFilter();
   f.type = opts.filter.type;
   f.frequency.value = opts.filter.freq;
@@ -122,7 +123,7 @@ function burst(
   g.gain.exponentialRampToValueAtTime(Math.max(opts.gain, 0.0002), t + (opts.attack ?? 0.004));
   g.gain.exponentialRampToValueAtTime(0.0001, t + opts.decay);
   src.connect(f).connect(g).connect(out);
-  src.start(t, rnd(0, 0.2));
+  src.start(t);
   src.stop(t + opts.decay + 0.05);
 }
 
@@ -728,7 +729,7 @@ const buildTrain: Builder = (ctx, out) => {
   wLp.type = "lowpass";
   wLp.frequency.value = 760;
   const wGain = ctx.createGain();
-  wGain.gain.value = 0.05;
+  wGain.gain.value = 0.09;
   wind.connect(wLp).connect(wGain).connect(out);
   const wLfo = ctx.createOscillator();
   wLfo.frequency.value = 0.07;
@@ -743,13 +744,13 @@ const buildTrain: Builder = (ctx, out) => {
   const scheduleClack = () => {
     burst(ctx, out, {
       filter: { type: "bandpass", freq: rnd(700, 1000), q: 1.2 },
-      gain: rnd(0.04, 0.08),
+      gain: rnd(0.06, 0.12),
       decay: 0.09,
     });
     timers.after(rnd(110, 150), () =>
       burst(ctx, out, {
         filter: { type: "bandpass", freq: rnd(600, 900), q: 1.2 },
-        gain: rnd(0.03, 0.06),
+        gain: rnd(0.05, 0.09),
         decay: 0.08,
       })
     );
@@ -934,7 +935,7 @@ const buildSnow: Builder = (ctx, out) => {
   windBp.frequency.value = 300;
   windBp.Q.value = 0.7;
   const windGain = ctx.createGain();
-  windGain.gain.value = 0.03;
+  windGain.gain.value = 0.06;
   const windPan = ctx.createStereoPanner();
   wind.connect(windBp).connect(windGain).connect(windPan).connect(out);
   const windWander = ctx.createOscillator();
