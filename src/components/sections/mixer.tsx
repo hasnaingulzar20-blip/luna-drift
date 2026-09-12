@@ -69,8 +69,6 @@ export default function Mixer() {
   }, []);
 
   const onLayerChange = (id: MixerLayerId, v: number) => {
-    // dragging a layer while silent gently wakes tonight's drift
-    if (!isPlaying && v > 0) playSoundscape(TONIGHTS_PICK);
     setMixLayer(id, v);
   };
 

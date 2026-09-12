@@ -93,6 +93,7 @@ function noiseSource(ctx: AudioContext, s: Sources, kind: "white" | "pink" | "br
   const src = ctx.createBufferSource();
   src.buffer = makeNoiseBuffer(ctx, kind);
   src.loop = true;
+  src.start();
   s.nodes.push(src);
   return src;
 }

@@ -200,8 +200,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
         // ease the soundscape down so the voice can lean on it
         audioEngine.setDuck(1);
       }).catch(() => setNarrating(false));
-      // a soft bed of rain under the voice, if nothing is playing yet
-      if (!isPlaying) startAmbient("rain");
     }
   };
 
