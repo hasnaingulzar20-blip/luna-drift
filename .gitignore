@@ -52,3 +52,11 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# local runtime artifacts
+/.zscripts/dev.pid
+/tool-results/
+/db/custom.db
+dev.log
+dev.err.log
+dev.pid

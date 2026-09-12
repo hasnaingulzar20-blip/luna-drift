@@ -21,7 +21,7 @@ const RESTORE_KEY = "luna-restore";
 
 function resolveScape(raw: string | null): SoundscapeId | null {
   if (!raw) return null;
-  if (raw === "pick") return TONIGHTS_PICK.id;
+  if (raw === "pick") return TONIGHTS_PICK;
   return SOUNDSCAPES.some((s) => s.id === raw) ? (raw as SoundscapeId) : null;
 }
 
