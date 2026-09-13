@@ -5,6 +5,9 @@ import { dayKey, ensureProfile } from "@/lib/journal";
 export async function GET(req: Request) {
   try {
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
 
     // constellation window — offset 0 = the last 35 days ending tonight,
     // offset N = the 35-day window N*35 days further back (month navigation)

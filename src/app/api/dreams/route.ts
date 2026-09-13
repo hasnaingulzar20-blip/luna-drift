@@ -11,6 +11,9 @@ const MAX_NOTES = 40;
 export async function GET() {
   try {
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const dreams = await db.dreamNote.findMany({
       where: { profileId: profile.id },
       orderBy: { createdAt: "desc" },
@@ -46,6 +49,9 @@ export async function POST(req: NextRequest) {
         : "calm";
 
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const dream = await db.dreamNote.create({
       data: { profileId: profile.id, body: text, mood },
     });
@@ -73,6 +79,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing dream id" }, { status: 400 });
     }
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const existing = await db.dreamNote.findUnique({ where: { id } });
     if (!existing || existing.profileId !== profile.id) {
       return NextResponse.json({ error: "Dream not found" }, { status: 404 });

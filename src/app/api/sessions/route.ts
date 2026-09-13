@@ -8,6 +8,9 @@ const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", 
 export async function GET() {
   try {
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const rows = await db.sleepSession.findMany({
       where: { profileId: profile.id },
       orderBy: { endedAt: "desc" },
@@ -31,7 +34,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
     const soundscape = String(body?.soundscape ?? "mix");
-    const minutes = Math.max(0, Math.min(720, Math.round(Number(body?.minutes ?? 0))));
+    // Cap at 480 minutes (8h) — the longest drift-for-hours mode is 8h.
+    // Anything higher is fabricated or a bug.
+    const minutes = Math.max(0, Math.min(480, Math.round(Number(body?.minutes ?? 0))));
     const completed = Boolean(body?.completed);
 
     if (!VALID.has(soundscape)) {
@@ -42,6 +47,9 @@ export async function POST(req: Request) {
     }
 
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const today = dayKey(new Date());
     const isNewDay = profile.lastSessionDay !== today;
 
