@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Moon, Square, Sunrise } from "lucide-react";
 import { usePlayer } from "@/store/player";
 import { getSoundscape } from "@/lib/soundscapes";
+import UserMenu from "@/components/auth/user-menu";
 
 function formatRemaining(sec: number) {
   const m = Math.floor(sec / 60);
@@ -188,6 +189,7 @@ export default function SiteHeader() {
               <span className="font-mono">{wakeAlarm.time}</span>
             </a>
           )}
+          <UserMenu />
         </div>
       </div>
     </header>

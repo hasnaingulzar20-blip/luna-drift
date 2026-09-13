@@ -10,6 +10,7 @@ datasource db {
 
 model Profile {
   id             String         @id @default(cuid())
+  authId         String?        @unique
   name           String         @default("Drifter")
   streak         Int            @default(0)
   totalMinutes   Int            @default(0)

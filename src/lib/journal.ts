@@ -1,9 +1,31 @@
 import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/server";
 
 export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
 export async function ensureProfile() {
-  let profile = await db.profile.findFirst();
+  // Try to get the authenticated Supabase user
+  let authId: string | undefined;
+  try {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) authId = user.id;
+  } catch {
+    // No auth context — fall through to anonymous profile
+  }
+
+  // If authenticated, find or create the profile linked to this user
+  if (authId) {
+    let profile = await db.profile.findFirst({ where: { authId } });
+    if (!profile) {
+      // The trigger should have created it, but create as fallback
+      profile = await db.profile.create({ data: { authId, name: "Drifter" } });
+    }
+    return profile;
+  }
+
+  // Anonymous: use the single shared profile (legacy behavior)
+  let profile = await db.profile.findFirst({ where: { authId: null } });
   if (!profile) {
     profile = await db.profile.create({ data: { name: "Drifter" } });
   }
