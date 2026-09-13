@@ -3,31 +3,26 @@ import { createClient } from "@/lib/supabase/server";
 
 export const dayKey = (d: Date) => d.toISOString().slice(0, 10);
 
+/**
+ * Resolve the authenticated user's profile.
+ * Returns null if not authenticated — API routes should 401 in that case.
+ * Anonymous users can still use audio (client-side) but cannot persist data.
+ */
 export async function ensureProfile() {
-  // Try to get the authenticated Supabase user
   let authId: string | undefined;
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (user) authId = user.id;
   } catch {
-    // No auth context — fall through to anonymous profile
+    // No auth context
   }
 
-  // If authenticated, find or create the profile linked to this user
-  if (authId) {
-    let profile = await db.profile.findFirst({ where: { authId } });
-    if (!profile) {
-      // The trigger should have created it, but create as fallback
-      profile = await db.profile.create({ data: { authId, name: "Drifter" } });
-    }
-    return profile;
-  }
+  if (!authId) return null;
 
-  // Anonymous: use the single shared profile (legacy behavior)
-  let profile = await db.profile.findFirst({ where: { authId: null } });
+  let profile = await db.profile.findFirst({ where: { authId } });
   if (!profile) {
-    profile = await db.profile.create({ data: { name: "Drifter" } });
+    profile = await db.profile.create({ data: { authId, name: "Drifter" } });
   }
   return profile;
 }

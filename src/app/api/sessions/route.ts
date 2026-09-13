@@ -1,13 +1,23 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { dayKey, ensureProfile, recalcStreak } from "@/lib/journal";
 
-const VALID = new Set(["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "bowls", "snow", "mix"]);
+const VALID_SOUNDSCAPES = ["rain", "forest", "ocean", "cafe", "fireplace", "piano", "train", "bowls", "snow", "mix"] as const;
+
+const sessionSchema = z.object({
+  soundscape: z.enum(VALID_SOUNDSCAPES),
+  minutes: z.number().finite().int().min(1).max(480),
+  completed: z.boolean(),
+});
 
 /** the whole ledger, newest first — feeds the CSV export in the journal */
 export async function GET() {
   try {
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const rows = await db.sleepSession.findMany({
       where: { profileId: profile.id },
       orderBy: { endedAt: "desc" },
@@ -30,18 +40,19 @@ export async function GET() {
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => null);
-    const soundscape = String(body?.soundscape ?? "mix");
-    const minutes = Math.max(0, Math.min(720, Math.round(Number(body?.minutes ?? 0))));
-    const completed = Boolean(body?.completed);
-
-    if (!VALID.has(soundscape)) {
-      return NextResponse.json({ error: "Unknown soundscape" }, { status: 400 });
+    const parsed = sessionSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request", details: parsed.error.issues.map((i) => i.message) },
+        { status: 400 }
+      );
     }
-    if (minutes < 1) {
-      return NextResponse.json({ ok: true, skipped: true });
-    }
+    const { soundscape, minutes, completed } = parsed.data;
 
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const today = dayKey(new Date());
     const isNewDay = profile.lastSessionDay !== today;
 

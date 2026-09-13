@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { db } from "@/lib/db";
 import { ensureProfile } from "@/lib/journal";
 
 const MOODS = ["calm", "hopeful", "melancholy", "strange", "joyful"] as const;
-type Mood = (typeof MOODS)[number];
-
 const MAX_BODY = 400;
 const MAX_NOTES = 40;
+
+const dreamSchema = z.object({
+  body: z.string().trim().min(1, "A dream needs a few words").max(MAX_BODY, "Keep dreams under 400 characters"),
+  mood: z.enum(MOODS).default("calm"),
+});
 
 export async function GET() {
   try {
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const dreams = await db.dreamNote.findMany({
       where: { profileId: profile.id },
       orderBy: { createdAt: "desc" },
@@ -32,20 +39,20 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const body = (await req.json()) as { body?: unknown; mood?: unknown };
-    const text = typeof body.body === "string" ? body.body.trim() : "";
-    if (!text) {
-      return NextResponse.json({ error: "A dream needs a few words" }, { status: 400 });
+    const body = await req.json().catch(() => null);
+    const parsed = dreamSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid request", details: parsed.error.issues.map((i) => i.message) },
+        { status: 400 }
+      );
     }
-    if (text.length > MAX_BODY) {
-      return NextResponse.json({ error: "Keep dreams under 400 characters" }, { status: 400 });
-    }
-    const mood: Mood =
-      typeof body.mood === "string" && (MOODS as readonly string[]).includes(body.mood)
-        ? (body.mood as Mood)
-        : "calm";
+    const { body: text, mood } = parsed.data;
 
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const dream = await db.dreamNote.create({
       data: { profileId: profile.id, body: text, mood },
     });
@@ -73,6 +80,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Missing dream id" }, { status: 400 });
     }
     const profile = await ensureProfile();
+    if (!profile) {
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+    }
     const existing = await db.dreamNote.findUnique({ where: { id } });
     if (!existing || existing.profileId !== profile.id) {
       return NextResponse.json({ error: "Dream not found" }, { status: 404 });
