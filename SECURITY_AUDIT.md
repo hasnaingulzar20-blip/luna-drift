@@ -71,10 +71,9 @@ Luna Drift is a live sleep meditation PWA. A security audit identified **3 P0 (c
 ### P1-2: Unused next-auth dependency — FIXED
 | | |
 |---|---|
-| **File** | `package.json:64` |
+| **File** | `package.json:64`, `package-lock.json`, `bun.lock` |
 | **Finding** | `next-auth` was listed as a dependency but never imported anywhere in the repository (verified across entire repo: `src/`, `scripts/`, `examples/`, config files). The app uses Supabase Auth exclusively. |
-| **Fix** | Removed `next-auth` from package.json |
-| **Note** | Lockfiles (`package-lock.json`, `bun.lock`) still contain next-auth entries. These will update naturally on `npm install`. Do not regenerate lockfiles as that could change other dependency versions. |
+| **Fix** | Removed `next-auth` from `package.json`. Ran `npm uninstall next-auth` to clean `package-lock.json` (0 next-auth references remain). Removed stale `bun.lock` (project uses npm, not bun) and added it to `.gitignore`. |
 | **Status** | FIXED |
 
 ---
@@ -202,7 +201,7 @@ try {
 | ESLint (API routes + journal + supabase) | PASS — 0 errors |
 | Production build (`next build`) | PASS — all routes compiled |
 | Prisma validation | PASS — no schema changes |
-| next-auth repo-wide search | PASS — only in lockfiles (will clear on install) |
+| next-auth repo-wide search | PASS — 0 references in source, 0 in package-lock.json, bun.lock removed |
 | Secrets in tracked files | PASS — no secrets found |
 
 ---
@@ -229,7 +228,7 @@ try {
 
 **After merging:**
 - Deploy to Vercel (auto-deploys from `main`)
-- Run `npm install` to update lockfiles (removes next-auth)
+- Run `npm install` to ensure lockfile is consistent (next-auth already removed from package-lock.json)
 - No database migration needed
 - No environment variable changes needed
 - Existing authenticated users' data is preserved

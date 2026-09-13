@@ -10,6 +10,9 @@ node_modules
 !.yarn/releases
 !.yarn/versions
 
+# lockfiles — project uses npm (package-lock.json), not bun
+bun.lock
+
 # testing
 /coverage
 
