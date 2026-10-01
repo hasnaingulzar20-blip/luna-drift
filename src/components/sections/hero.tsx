@@ -161,7 +161,7 @@ export default function Hero() {
             <MoonStar className="h-3.5 w-3.5" aria-hidden="true" />
             <span className="text-moon-300/40" aria-hidden="true">I</span>
             <span className="text-white/20" aria-hidden="true">·</span>
-            Tonight&apos;s pick
+            Tonight's pick
             {now && (
               <span className="text-mist-400 normal-case tracking-normal">
                 · {greeting(now.getHours())}, {now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
@@ -169,7 +169,8 @@ export default function Hero() {
             )}
           </p>
 
-          <h1 className="mt-5 font-serif text-5xl font-light leading-[1.05] text-glow text-moon-100 sm:text-6xl lg:text-7xl">
+          <h1 className="sr-only">Luna Drift — Free Sleep Meditation & Ambient Soundscapes</h1>
+          <h2 className="mt-5 font-serif text-5xl font-light leading-[1.05] text-glow text-moon-100 sm:text-6xl lg:text-7xl">
             {(() => {
               const words = pick.name.split(" ");
               const last = words.pop() ?? "";
@@ -180,7 +181,7 @@ export default function Hero() {
                 </>
               );
             })()}
-          </h1>
+          </h2>
           <p className="mt-3 font-serif text-xl italic text-mist-200/90">
             a {pick.duration} drift into sleep
           </p>

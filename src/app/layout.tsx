@@ -166,13 +166,15 @@ export default function RootLayout({
       "Offline support via service worker (PWA)",
       "Keyboard shortcuts",
     ],
-    aggregateRating: {
-      "@type": "AggregateRating",
-      ratingValue: "5",
-      reviewCount: "1",
-    },
     screenshot: `${BASE_URL}/screenshots/wide.png`,
     genre: ["Meditation", "Sleep Aid", "ASMR", "Ambient Music"],
+  };
+
+  const websiteLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "Luna Drift",
+    url: BASE_URL,
   };
 
   return (
@@ -183,6 +185,10 @@ export default function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteLd) }}
         />
         {children}
         <Toaster />
