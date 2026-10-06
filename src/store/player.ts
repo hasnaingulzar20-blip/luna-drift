@@ -20,6 +20,8 @@ import {
   type WindDownSequence,
   type WindDownStep,
 } from "@/lib/sequences";
+import { recordSession as recordSessionDb } from "@/lib/supabase-data";
+import { enableBackgroundAudio, disableBackgroundAudio } from "@/lib/native/background-audio";
 
 /** whisper level the room settles at when drifting till dawn */
 export const DAWN_WHISPER = 0.3;
@@ -157,11 +159,7 @@ async function recordSession(payload: {
   completed: boolean;
 }) {
   try {
-    await fetch("/api/sessions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    await recordSessionDb(payload);
     window.dispatchEvent(new CustomEvent("luna:session-recorded"));
   } catch {
     /* offline — journal sync can wait */
@@ -229,11 +227,13 @@ export const usePlayer = create<PlayerState>()(
         if (get().dawnMode) {
           audioEngine.setFadeFactor(DAWN_WHISPER, 4);
         }
+        void enableBackgroundAudio();
       },
 
       stopAll: (record = true) => {
         const s = get();
         audioEngine.stopAll(1.4);
+        void disableBackgroundAudio();
         // journal: only log meaningful listening
         if (record && s.sessionStartedAt) {
           const minutes = Math.round((Date.now() - s.sessionStartedAt) / 60000);
