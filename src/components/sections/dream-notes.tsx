@@ -11,6 +11,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Ornament from "@/components/atmosphere/ornament";
+import { getDreams, saveDream, deleteDream } from "@/lib/supabase-data";
 
 interface DreamRow {
   id: string;
@@ -57,11 +58,8 @@ export default function DreamNotes() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/dreams", { cache: "no-store" });
-      if (res.ok) {
-        const j = (await res.json()) as { dreams: DreamRow[] };
-        setDreams(j.dreams);
-      }
+      const j = await getDreams();
+      if (j) setDreams(j.dreams);
     } catch {
       /* keep whatever we have */
     }
@@ -77,17 +75,11 @@ export default function DreamNotes() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch("/api/dreams", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ body, mood }),
-      });
-      if (res.ok) {
-        const j = (await res.json()) as { dream: DreamRow };
+      const j = await saveDream({ body, mood });
+      if ("dream" in j) {
         setDreams((d) => [j.dream, ...(d ?? [])]);
         setText("");
       } else {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
         setError(j.error ?? "The dream slipped away — try once more.");
       }
     } catch {
@@ -100,7 +92,7 @@ export default function DreamNotes() {
   const remove = async (id: string) => {
     setDreams((d) => d?.filter((x) => x.id !== id) ?? null);
     try {
-      await fetch(`/api/dreams?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      await deleteDream(id);
     } catch {
       /* it will come back on next load if the delete failed */
     }
