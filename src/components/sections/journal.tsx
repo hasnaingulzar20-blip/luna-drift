@@ -17,6 +17,7 @@ import {
 import { getSoundscape, type SoundscapeId } from "@/lib/soundscapes";
 import { downloadNightCard } from "@/lib/night-card";
 import DreamNotes from "./dream-notes";
+import { getJournalData, getSessionsLedger } from "@/lib/supabase-data";
 
 interface SessionRow {
   id: string;
@@ -73,11 +74,8 @@ function prettyName(id: string) {
 /** download the whole ledger as CSV */
 async function exportLedger() {
   try {
-    const res = await fetch("/api/sessions", { cache: "no-store" });
-    if (!res.ok) return;
-    const json = (await res.json()) as {
-      sessions: { soundscape: string; minutes: number; completed: boolean; endedAt: string }[];
-    };
+    const json = await getSessionsLedger();
+    if (!json) return;
     const esc = (v: string | number | boolean) => {
       const s = String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -254,9 +252,8 @@ export default function Journal() {
   const load = useCallback(
     async (offset: number) => {
       try {
-        const res = await fetch(`/api/profile?monthOffset=${offset}`, { cache: "no-store" });
-        if (res.ok) {
-          const json = (await res.json()) as ProfileData;
+        const json = await getJournalData(offset);
+        if (json) {
           setData((prev) =>
             offset === 0 || !prev
               ? json
@@ -442,7 +439,7 @@ export default function Journal() {
                 {!loading && (!data || data.recent.length === 0) && (
                   <p className="flex items-center gap-2 rounded-xl bg-moon-200/[0.04] px-4 py-3.5 text-xs text-mist-400">
                     <MoonStar className="h-3.5 w-3.5 text-moon-300/70" aria-hidden="true" />
-                    Nothing yet — tonight&apos;s first drift will be recorded here.
+                    Nothing yet — tonight's first drift will be recorded here.
                   </p>
                 )}
                 {data?.recent.map((s) => (
@@ -471,7 +468,7 @@ export default function Journal() {
           {/* week chart */}
           <div className="glass-panel relative overflow-hidden rounded-3xl p-6 sm:p-8">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-widest text-mist-400">this week&apos;s rest</p>
+              <p className="text-xs uppercase tracking-widest text-mist-400">this week's rest</p>
               <p className="font-mono text-xs text-mist-500">minutes / night</p>
             </div>
             <div className="mt-8 flex h-48 items-end justify-between gap-2.5 sm:gap-4">
