@@ -27,7 +27,7 @@ export default function UserMenu() {
     await supabase.auth.signOut();
     setUser(null);
     setOpen(false);
-    router.refresh();
+    router.replace("/");
   };
 
   if (loading) {

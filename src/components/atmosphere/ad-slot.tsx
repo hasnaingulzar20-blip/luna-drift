@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { useConsent } from "./adsense-loader";
+import { isNative } from "@/lib/platform";
 
 interface AdSlotProps {
   slot: string;
@@ -19,6 +20,7 @@ export default function AdSlot({
   const pushedRef = useRef(false);
 
   useEffect(() => {
+    if (isNative) return;
     if (consent !== "accepted" || !insRef.current || pushedRef.current) return;
     try {
       // @ts-expect-error adsbygoogle is injected by the AdSense script
@@ -28,6 +30,10 @@ export default function AdSlot({
       /* adsbygoogle not ready yet — will retry on next render */
     }
   }, [consent]);
+
+  // On native (Android), AdSense doesn't apply — AdMob handles ads natively.
+  // For now, render nothing on native. AdMob integration is documented in ANDROID_SETUP.md.
+  if (isNative) return null;
 
   if (consent !== "accepted") return null;
 

@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { MoonStar, Loader2 } from "lucide-react";
+import { getAuthRedirectUrl } from "@/lib/platform";
 
 export default function LoginForm() {
   const supabase = createClient();
@@ -25,7 +26,7 @@ export default function LoginForm() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: { emailRedirectTo: getAuthRedirectUrl() },
       });
       if (error) setError(error.message);
       else setMessage("Check your email for a confirmation link.");
@@ -44,7 +45,7 @@ export default function LoginForm() {
     setMessage(null);
     const { error } = await supabase.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo: getAuthRedirectUrl() },
     });
     if (error) setError(error.message);
     else setMessage("Check your email for a magic login link.");
@@ -56,7 +57,7 @@ export default function LoginForm() {
     setError(null);
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: getAuthRedirectUrl() },
     });
     if (error) {
       setError(error.message);
@@ -80,7 +81,6 @@ export default function LoginForm() {
         </p>
       </div>
 
-      {/* OAuth buttons */}
       <div className="flex flex-col gap-2.5">
         <button
           type="button"
@@ -115,7 +115,6 @@ export default function LoginForm() {
         <div className="h-px flex-1 bg-moon-200/15" />
       </div>
 
-      {/* Email/password or OTP form */}
       <form onSubmit={mode === "otp" ? handleOtp : handleEmailAuth} className="flex flex-col gap-3">
         <input
           type="email"
@@ -151,7 +150,6 @@ export default function LoginForm() {
       {error && <p className="mt-3 text-center text-xs text-red-400">{error}</p>}
       {message && <p className="mt-3 text-center text-xs text-moon-300">{message}</p>}
 
-      {/* Mode switcher */}
       <div className="mt-5 flex flex-wrap justify-center gap-3 text-[11px] text-mist-400">
         <button type="button" onClick={() => setMode("login")} className={`transition hover:text-moon-100 ${mode === "login" ? "text-moon-200" : ""}`}>
           Sign in
