@@ -594,17 +594,17 @@ export default function SleepTimer() {
                       onClick={() => startSequence(seq)}
                       data-seq-start={seq.id}
                       aria-label={`Start wind-down sequence ${seq.name}, ${totalSequenceMinutes(seq.steps)} minutes`}
-                      className="group flex flex-col rounded-2xl bg-white/[0.02] p-5 text-left ring-1 ring-white/6 transition hover:bg-moon-200/[0.06] hover:ring-moon-200/30"
+                      className="group flex min-w-0 flex-col overflow-hidden rounded-2xl bg-white/[0.02] p-5 text-left ring-1 ring-white/6 transition hover:bg-moon-200/[0.06] hover:ring-moon-200/30"
                     >
                       <span className="flex items-center justify-between gap-2">
-                        <span className="font-serif text-base text-moon-100">{seq.name}</span>
+                        <span className="min-w-0 truncate font-serif text-base text-moon-100">{seq.name}</span>
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moon-200/10 text-moon-100 ring-1 ring-moon-200/25 transition group-hover:bg-moon-200 group-hover:text-night-950">
                           <Play className="ml-0.5 h-3 w-3 fill-current" aria-hidden="true" />
                         </span>
                       </span>
-                      <span className="mt-3 flex flex-wrap items-center gap-1.5">
+                      <span className="mt-3 flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1">
                         {seq.steps.map((st, i) => (
-                          <span key={st.id} className="flex items-center gap-1.5">
+                          <span key={st.id} className="flex shrink-0 items-center gap-1.5">
                             {i > 0 && <HandArrow />}
                             <StepChip step={st} state="ahead" />
                           </span>
@@ -625,18 +625,18 @@ export default function SleepTimer() {
                     {customSequences.map((seq) => (
                       <div
                         key={seq.id}
-                        className="group flex flex-wrap items-center justify-between gap-3 rounded-xl border border-moon-200/15 bg-moon-200/[0.05] px-4 py-3 transition hover:border-moon-200/35"
+                        className="group flex flex-wrap items-center justify-between gap-3 overflow-hidden rounded-xl border border-moon-200/15 bg-moon-200/[0.05] px-4 py-3 transition hover:border-moon-200/35"
                       >
                         <button
                           type="button"
                           onClick={() => startSequence(seq)}
-                          className="min-w-0 flex-1 text-left"
+                          className="min-w-0 flex-1 overflow-hidden text-left"
                           aria-label={`Start ${seq.name}`}
                         >
-                          <span className="block text-sm text-moon-100">{seq.name}</span>
-                          <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                          <span className="block truncate text-sm text-moon-100">{seq.name}</span>
+                          <span className="mt-1 flex flex-wrap items-center gap-1.5 overflow-x-auto pb-1">
                             {seq.steps.map((st, i) => (
-                              <span key={st.id} className="flex items-center gap-1.5">
+                              <span key={st.id} className="flex shrink-0 items-center gap-1.5">
                                 {i > 0 && <HandArrow />}
                                 <StepChip step={st} state="ahead" />
                               </span>
