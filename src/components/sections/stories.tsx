@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpenText, Pause, Play, RotateCcw, Star, Volume2 } from "lucide-react";
+import { BookOpenText, Pause, Play, RotateCcw, SkipBack, Star, Volume2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { STORIES, type SleepStory } from "@/lib/stories";
@@ -20,7 +20,6 @@ function StoryCard({ story }: { story: SleepStory }) {
   const pinned = usePlayer((s) => s.favoriteStories.includes(story.id));
   const toggleFavoriteStory = usePlayer((s) => s.toggleFavoriteStory);
   const pin = (e: React.SyntheticEvent) => {
-    // keep the pin from opening the dialog — the card itself is the trigger
     e.stopPropagation();
     e.preventDefault();
     toggleFavoriteStory(story.id);
@@ -56,7 +55,6 @@ function StoryCard({ story }: { story: SleepStory }) {
           <span className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-night-950/55 text-moon-100 ring-1 ring-moon-200/25 backdrop-blur transition group-hover:bg-moon-200 group-hover:text-night-950">
             <BookOpenText className="h-4 w-4" aria-hidden="true" />
           </span>
-          {/* keep-close pin — stops propagation so it never opens the dialog */}
           <button
             type="button"
             onClick={pin}
@@ -79,7 +77,6 @@ function StoryCard({ story }: { story: SleepStory }) {
               kept close
             </span>
           )}
-          {/* one slow sweep of moonlight across the cover on hover */}
           <span aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-3xl">
             <span className="story-shine absolute -inset-y-10 -left-1/2 w-1/3 bg-gradient-to-r from-transparent via-moon-100/[0.13] to-transparent" />
           </span>
@@ -93,21 +90,19 @@ function StoryCard({ story }: { story: SleepStory }) {
 function StoryDialogBody({ story }: { story: SleepStory }) {
   const [narrating, setNarrating] = useState(false);
   const [resumeAt, setResumeAt] = useState<number | null>(null);
+  const [hasStarted, setHasStarted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startAmbient = usePlayer((s) => s.playSoundscape);
   const isPlaying = usePlayer((s) => s.isPlaying);
   const pinned = usePlayer((s) => s.favoriteStories.includes(story.id));
   const toggleFavoriteStory = usePlayer((s) => s.toggleFavoriteStory);
 
-  // never leave the bed ducked behind a closed dialog
   useEffect(() => {
     return () => {
       audioEngine.setDuck(0);
     };
   }, []);
 
-  // keep the screen awake while the voice carries the story —
-  // on a phone the display would otherwise dim mid-sentence
   useEffect(() => {
     if (!narrating) return;
     type WakeSentinel = { release: () => Promise<void> };
@@ -123,11 +118,9 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       try {
         sentinel = await wakeLock.request("screen");
       } catch {
-        /* denied or unsupported — the screen may drift */
       }
     };
     void acquire();
-    // the OS releases the lock whenever the tab hides; ask again on return
     const onVisible = () => {
       if (document.visibilityState === "visible") void acquire();
     };
@@ -140,9 +133,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     };
   }, [narrating]);
 
-  // remember where the story was left, and offer to pick it back up.
-  // wired as element props (not addEventListener): this component mounts
-  // with the page, long before the dialog's <audio> ever exists
   const recallPosition = () => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -151,7 +141,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       const raw = localStorage.getItem(storyKey(story.id));
       if (raw) saved = Number(raw);
     } catch {
-      /* storage blocked — stories simply start at the beginning */
     }
     if (
       saved &&
@@ -160,6 +149,7 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       audio.duration - saved > 60
     ) {
       setResumeAt(saved);
+      setHasStarted(true);
     }
   };
 
@@ -170,7 +160,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       try {
         localStorage.setItem(storyKey(story.id), String(Math.floor(audio.currentTime)));
       } catch {
-        /* noop */
       }
     }
   };
@@ -179,7 +168,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     try {
       localStorage.removeItem(storyKey(story.id));
     } catch {
-      /* noop */
     }
   };
 
@@ -192,12 +180,12 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
       audioEngine.setDuck(0);
     } else {
       if (resumeAt) {
-        audio.currentTime = resumeAt; // "listen" continues where it stopped
+        audio.currentTime = resumeAt;
         setResumeAt(null);
       }
       void audio.play().then(() => {
         setNarrating(true);
-        // ease the soundscape down so the voice can lean on it
+        setHasStarted(true);
         audioEngine.setDuck(1);
       }).catch(() => setNarrating(false));
     }
@@ -211,7 +199,20 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
     void audio.play().then(() => {
       setNarrating(true);
       audioEngine.setDuck(1);
-    }).catch(() => {/* the voice can wait for a real gesture */});
+    }).catch(() => {});
+  };
+
+  const restartStory = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = 0;
+    setResumeAt(null);
+    clearPosition();
+    void audio.play().then(() => {
+      setNarrating(true);
+      setHasStarted(true);
+      audioEngine.setDuck(1);
+    }).catch(() => setNarrating(false));
   };
 
   return (
@@ -252,6 +253,18 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
                 continue from {fmt(resumeAt)}
               </button>
             )}
+            {hasStarted && (
+              <button
+                type="button"
+                onClick={restartStory}
+                className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-xs text-moon-100 ring-1 ring-moon-200/30 transition hover:bg-moon-200/15"
+                aria-label="Restart narration from the beginning"
+                title="Play from the very beginning"
+              >
+                <SkipBack className="h-3.5 w-3.5" aria-hidden="true" />
+                restart
+              </button>
+            )}
             <button
               type="button"
               onClick={toggleNarration}
@@ -277,6 +290,7 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
         onEnded={() => {
           clearPosition();
           setNarrating(false);
+          setHasStarted(false);
           audioEngine.setDuck(0);
         }}
         preload="none"
@@ -298,7 +312,6 @@ function StoryDialogBody({ story }: { story: SleepStory }) {
 
 export default function Stories() {
   const favoriteStories = usePlayer((s) => s.favoriteStories);
-  // pinned stories lead the shelf; the rest keep their written order
   const ordered = useMemo(() => {
     const pinnedSet = new Set(favoriteStories);
     return [...STORIES].sort(
