@@ -143,7 +143,8 @@ interface PlayerState {
   /** validate a sequence that arrived from a share link; true when it joined the shelf */
   importSequence: (raw: unknown) => boolean;
   startSequence: (seq: WindDownSequence) => void;
-  cancelSequence: () => void; // ends the handover, keeps the current room playing
+  /** ends the handover and stops all audio */
+  cancelSequence: () => void;
   saveSequence: (name: string, steps: WindDownStep[]) => WindDownSequence | null;
   deleteSequence: (id: string) => void;
   toggleImmersive: () => void;
@@ -214,7 +215,6 @@ export const usePlayer = create<PlayerState>()(
         void audioEngine.playBase(id);
         audioEngine.setMasterVolume(get().masterVolume);
         audioEngine.resetFade();
-        // re-apply any active mixer layers over the new base
         const mix = get().mix;
         (Object.keys(mix) as MixerLayerId[]).forEach((k) => {
           if (mix[k] > 0) audioEngine.setMixLayer(k, mix[k]);
@@ -225,7 +225,6 @@ export const usePlayer = create<PlayerState>()(
           sessionStartedAt: get().sessionStartedAt ?? Date.now(),
           lastPlayed: { id, at: Date.now() },
         });
-        // a new room inside dawn mode keeps the whisper
         if (get().dawnMode) {
           audioEngine.setFadeFactor(DAWN_WHISPER, 4);
         }
@@ -234,7 +233,6 @@ export const usePlayer = create<PlayerState>()(
       stopAll: (record = true) => {
         const s = get();
         audioEngine.stopAll(1.4);
-        // journal: only log meaningful listening
         if (record && s.sessionStartedAt) {
           const minutes = Math.round((Date.now() - s.sessionStartedAt) / 60000);
           if (minutes >= 1) {
@@ -390,7 +388,6 @@ export const usePlayer = create<PlayerState>()(
       setWakeEnabled: (enabled) => {
         const s = get();
         if (enabled) {
-          // enabling after the alarm has already passed today arms it for tomorrow
           const now = new Date();
           const [h, m] = s.wakeAlarm.time.split(":").map(Number);
           const nowMin = now.getHours() * 60 + now.getMinutes();
@@ -418,17 +415,14 @@ export const usePlayer = create<PlayerState>()(
         const [h, m] = s.wakeAlarm.time.split(":").map(Number);
         const target = (h || 0) * 60 + (m || 0);
         const nowMin = now.getHours() * 60 + now.getMinutes();
-        // fire inside a 10-minute window past the target so an evening enable never blasts
         if (nowMin >= target && nowMin - target < 10) {
           set({ wakeAlarm: { ...s.wakeAlarm, lastFiredDay: today }, waking: true });
           audioEngine.playChime("sunrise");
-          // if a soundscape drifted through the night, ease it into the morning
           if (s.isPlaying) s.stopAll();
           if (typeof navigator !== "undefined" && "vibrate" in navigator) {
             try {
               navigator.vibrate([180, 260, 180]);
             } catch {
-              /* vibration is a bonus, never a requirement */
             }
           }
         }
@@ -446,8 +440,6 @@ export const usePlayer = create<PlayerState>()(
       setDriftHours: (v) =>
         set((s) => {
           if (v === null) {
-            // switching off mid-roll: the chunk in flight finishes, then the
-            // night ends normally (driftEndsAt cleared so the next completion stops)
             return { driftHours: null, driftMode: false, driftEndsAt: null };
           }
           return { driftHours: v };
@@ -467,12 +459,12 @@ export const usePlayer = create<PlayerState>()(
         if (!name || !Array.isArray(r.steps) || r.steps.length === 0) return false;
         const s = get();
         if (s.customSequences.some((q) => q.name.toLowerCase() === name.toLowerCase())) {
-          return false; // already on the shelf
+          return false;
         }
         const valid = new Set<string>([...SOUNDSCAPE_IDS, "silence"]);
         const steps: WindDownStep[] = [];
         for (const rawStep of r.steps.slice(0, SEQUENCE_MAX_STEPS)) {
-          if (!rawStep || typeof rawStep !== "object") return false; // one bad step voids the whole handover
+          if (!rawStep || typeof rawStep !== "object") return false;
           const st = rawStep as Record<string, unknown>;
           const sound = st.soundscape;
           const minutesNum = Number(st.minutes);
@@ -504,12 +496,12 @@ export const usePlayer = create<PlayerState>()(
       },
 
       startTimer: (minutes) => {
-        audioEngine.resetFade(); // leave any dawn whisper behind
+        audioEngine.resetFade();
         set({
           timerDuration: minutes,
           timerEndsAt: Date.now() + minutes * 60_000,
           remainingSeconds: minutes * 60,
-          sequence: null, // the timer takes over the ending
+          sequence: null,
           dawnMode: false,
         });
       },
@@ -518,7 +510,7 @@ export const usePlayer = create<PlayerState>()(
         const s = get();
         if (!s.timerEndsAt) return;
         const added = Math.max(1, Math.round(extra));
-        audioEngine.resetFade(); // if the final-minute fade had begun, breathe back in
+        audioEngine.resetFade();
         set({
           timerEndsAt: s.timerEndsAt + added * 60_000,
           timerDuration: ((s.timerDuration ?? 30) + added) as TimerDuration,
@@ -526,7 +518,6 @@ export const usePlayer = create<PlayerState>()(
             0,
             Math.round((s.timerEndsAt + added * 60_000 - Date.now()) / 1000)
           ),
-          // rolling nights stretch too — the hours owe the extension
           driftEndsAt: s.driftEndsAt ? s.driftEndsAt + added * 60_000 : null,
         });
       },
@@ -544,7 +535,7 @@ export const usePlayer = create<PlayerState>()(
       startSequence: (seq) => {
         if (!seq.steps.length) return;
         const s = get();
-        s.cancelTimer(); // the sequence owns the ending now
+        s.cancelTimer();
         const first = seq.steps[0];
         if (first.soundscape === "silence") {
           audioEngine.stopAll(2.5);
@@ -565,7 +556,9 @@ export const usePlayer = create<PlayerState>()(
         });
       },
 
-      cancelSequence: () => set({ sequence: null }),
+      cancelSequence: () => {
+        get().stopAll(false);
+      },
 
       saveSequence: (name, steps) => {
         const trimmed = name.trim().slice(0, 32);
@@ -597,7 +590,6 @@ export const usePlayer = create<PlayerState>()(
       tick: () => {
         const s = get();
 
-        // ── wind-down sequence handover ──
         if (s.sequence) {
           const seq = s.sequence;
           const stepRemaining = Math.max(
@@ -607,7 +599,6 @@ export const usePlayer = create<PlayerState>()(
           if (stepRemaining <= 0) {
             const next = seq.steps[seq.stepIndex + 1];
             if (!next) {
-              // the last step was silence itself — end quietly, log the drift
               audioEngine.stopAll(2.5);
               const minutes = s.sessionStartedAt
                 ? Math.max(1, Math.round((Date.now() - s.sessionStartedAt) / 60000))
@@ -630,7 +621,6 @@ export const usePlayer = create<PlayerState>()(
                 starIntensity: 1,
               });
             } else {
-              // hand the night over to the next room
               if (next.soundscape === "silence") {
                 audioEngine.stopAll(2.5);
                 set({ active: null, isPlaying: false });
@@ -660,7 +650,6 @@ export const usePlayer = create<PlayerState>()(
         const total = (s.timerDuration ?? 30) * 60;
 
         if (remaining <= 0) {
-          // natural end — the long fade has already happened over the last 60s
           if (s.chimeOnEnd) audioEngine.playChime("complete");
           const minutes = s.sessionStartedAt
             ? Math.max(
@@ -674,35 +663,28 @@ export const usePlayer = create<PlayerState>()(
             completed: true,
           });
           if (s.driftHours && s.active) {
-            // drift for hours — the night renews itself: the chunk that just
-            // finished is logged (above), then the room breathes back up and
-            // rolls on until the hours run out. takes precedence over till-dawn:
-            // a rolling night already has a plan for the small hours.
             const now = Date.now();
             const ends = s.driftEndsAt ?? now + s.driftHours * 3_600_000;
             if (now < ends) {
-              audioEngine.resetFade(); // breathe back up from the long fade
+              audioEngine.resetFade();
               set({
                 driftMode: true,
                 driftEndsAt: ends,
-                sessionStartedAt: now, // each chunk logs its own honest minutes
+                sessionStartedAt: now,
                 timerEndsAt: now + (s.timerDuration ?? 30) * 60_000,
                 remainingSeconds: (s.timerDuration ?? 30) * 60,
                 isPlaying: true,
               });
               return;
             }
-            // the hours have run out — fall through to the real ending below
           }
           if (s.tillDawn && s.active) {
-            // the night goes on — the room breathes back as a whisper and
-            // holds until the wake light (or a hand in the dark) ends it
             audioEngine.resetFade();
             audioEngine.setFadeFactor(DAWN_WHISPER, 9);
             set({
               dawnMode: true,
               isPlaying: true,
-              sessionStartedAt: Date.now(), // the dawn stretch is its own entry
+              sessionStartedAt: Date.now(),
               timerDuration: null,
               timerEndsAt: null,
               remainingSeconds: 0,
@@ -726,7 +708,6 @@ export const usePlayer = create<PlayerState>()(
         }
 
         if (remaining <= 60) {
-          // long fade-out over the final minute
           audioEngine.setFadeFactor(remaining / 60, 1.1);
         }
 
@@ -758,7 +739,6 @@ export const usePlayer = create<PlayerState>()(
   )
 );
 
-/** QA/debug handle — lets test harnesses drive playback state directly */
 if (typeof window !== "undefined") {
   (window as unknown as { __lunaStore?: typeof usePlayer }).__lunaStore = usePlayer;
 }
