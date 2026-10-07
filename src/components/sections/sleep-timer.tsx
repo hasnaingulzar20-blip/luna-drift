@@ -54,7 +54,6 @@ function formatRemaining(sec: number) {
   return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
 
-/** wall-clock of a rolling night's end — "3:40 am" */
 function fmtClock(ts: number) {
   const d = new Date(ts);
   let h = d.getHours();
@@ -70,7 +69,6 @@ function stepLabel(sound: SequenceSound): string {
   return sound === "silence" ? SILENCE_LABEL : getSoundscape(sound).name;
 }
 
-/** A small room → minutes chip used in sequence flows. */
 function StepChip({
   step,
   state = "idle",
@@ -81,7 +79,7 @@ function StepChip({
   remaining?: number;
 }) {
   const base =
-    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-500 ring-1";
+    "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] transition-all duration-500 ring-1 whitespace-nowrap";
   const look =
     state === "current"
       ? "bg-moon-200/15 text-moon-100 ring-moon-200/50 shadow-[0_0_18px_rgba(236,226,200,0.18)]"
@@ -93,18 +91,18 @@ function StepChip({
   return (
     <span className={`${base} ${look}`}>
       {step.soundscape === "silence" ? (
-        <Moon className="h-3 w-3 text-mist-500" aria-hidden="true" />
+        <Moon className="h-3 w-3 shrink-0 text-mist-500" aria-hidden="true" />
       ) : (
         <span
           aria-hidden="true"
-          className="h-1.5 w-1.5 rounded-full"
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ background: getSoundscape(step.soundscape as SoundscapeId).hue }}
         />
       )}
-      {stepLabel(step.soundscape)}
-      <span className="font-mono text-[10px] text-mist-500">{step.minutes}′</span>
+      <span className="truncate max-w-[120px]">{stepLabel(step.soundscape)}</span>
+      <span className="shrink-0 font-mono text-[10px] text-mist-500">{step.minutes}′</span>
       {state === "current" && remaining !== undefined && (
-        <span className="font-mono text-[10px] text-moon-200" aria-live="polite">
+        <span className="shrink-0 font-mono text-[10px] text-moon-200" aria-live="polite">
           {formatRemaining(remaining)}
         </span>
       )}
@@ -114,7 +112,7 @@ function StepChip({
 
 function HandArrow() {
   return (
-    <span aria-hidden="true" className="text-mist-600">
+    <span aria-hidden="true" className="shrink-0 text-mist-600">
       →
     </span>
   );
@@ -148,7 +146,6 @@ export default function SleepTimer() {
   const stopAll = usePlayer((s) => s.stopAll);
   const extendTimer = usePlayer((s) => s.extendTimer);
 
-  /* builder state */
   const [building, setBuilding] = useState(false);
   const [buildName, setBuildName] = useState("");
   const [buildSteps, setBuildSteps] = useState<WindDownStep[]>([
@@ -163,7 +160,6 @@ export default function SleepTimer() {
       await navigator.clipboard.writeText(link);
       ok = true;
     } catch {
-      // clipboard may be blocked — fall back to a hidden textarea
       try {
         const ta = document.createElement("textarea");
         ta.value = link;
@@ -212,7 +208,7 @@ export default function SleepTimer() {
                 Drift off, then silence
               </h2>
               <p className="mt-4 max-w-md text-sm leading-relaxed text-mist-300">
-                Choose how long tonight&apos;s drift should last. Over the final minute the sound
+                Choose how long tonight's drift should last. Over the final minute the sound
                 eases away in a long fade, and the stars above begin to dim with you.
               </p>
 
@@ -274,7 +270,6 @@ export default function SleepTimer() {
               </div>
             </div>
 
-            {/* countdown dial */}
             <div className="mx-auto flex flex-col items-center">
               <div className={`relative h-40 w-40 sm:h-44 sm:w-44 ${fading || dawn ? "animate-pulse" : ""}`}>
                 <svg viewBox="0 0 120 120" className="h-full w-full -rotate-90" aria-hidden="true">
@@ -353,10 +348,8 @@ export default function SleepTimer() {
             </div>
           </div>
 
-          {/* ── endings: wake light · last bell · drift for hours · drift till dawn ── */}
           <Ornament className="mt-10" />
           <div className="mt-8 grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-            {/* wake light */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
                 aria-hidden="true"
@@ -402,7 +395,6 @@ export default function SleepTimer() {
               </div>
             </div>
 
-            {/* the last bell */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
                 aria-hidden="true"
@@ -428,7 +420,6 @@ export default function SleepTimer() {
               </div>
             </div>
 
-            {/* drift for hours */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
                 aria-hidden="true"
@@ -488,7 +479,6 @@ export default function SleepTimer() {
               </div>
             </div>
 
-            {/* drift till dawn */}
             <div className="relative overflow-hidden rounded-2xl bg-white/[0.02] p-5 ring-1 ring-white/6">
               <div
                 aria-hidden="true"
@@ -526,7 +516,6 @@ export default function SleepTimer() {
             </div>
           </div>
 
-          {/* ── wind-down sequences ── */}
           <Ornament className="mt-10" />
           <div className="mt-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -540,10 +529,9 @@ export default function SleepTimer() {
             </div>
 
             {sequence ? (
-              /* ── active sequence ── */
               <div className="mt-4 rounded-2xl border border-moon-200/25 bg-moon-200/[0.05] p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <p className="font-serif text-lg text-moon-100">{sequence.name}</p>
                     <p className="mt-0.5 text-[11px] text-mist-400" aria-live="polite">
                       step {sequence.stepIndex + 1} of {sequence.steps.length} ·{" "}
@@ -554,15 +542,15 @@ export default function SleepTimer() {
                   <button
                     type="button"
                     onClick={cancelSequence}
-                    className="flex items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-xs text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
+                    className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.04] px-4 py-2 text-xs text-mist-300 ring-1 ring-white/10 transition hover:bg-moon-200/10 hover:text-moon-100"
                   >
                     <X className="h-3 w-3" aria-hidden="true" /> end the handover
                   </button>
                 </div>
 
-                <div className="mt-4 flex flex-wrap items-center gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
                   {sequence.steps.map((st, i) => (
-                    <span key={st.id} className="flex items-center gap-2">
+                    <span key={st.id} className="flex shrink-0 items-center gap-2">
                       {i > 0 && <HandArrow />}
                       <StepChip
                         step={st}
@@ -573,7 +561,6 @@ export default function SleepTimer() {
                   ))}
                 </div>
 
-                {/* overall progress through the whole handover */}
                 {(() => {
                   const totalSec = sequence.steps.reduce((a, st) => a + st.minutes * 60, 0);
                   const beforeSec = sequence.steps
@@ -599,7 +586,6 @@ export default function SleepTimer() {
               </div>
             ) : (
               <>
-                {/* ── premade sequences ── */}
                 <div className="mt-4 grid gap-4 md:grid-cols-3">
                   {WIND_DOWN_SEQUENCES.map((seq) => (
                     <button
@@ -612,7 +598,7 @@ export default function SleepTimer() {
                     >
                       <span className="flex items-center justify-between gap-2">
                         <span className="font-serif text-base text-moon-100">{seq.name}</span>
-                        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-moon-200/10 text-moon-100 ring-1 ring-moon-200/25 transition group-hover:bg-moon-200 group-hover:text-night-950">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-moon-200/10 text-moon-100 ring-1 ring-moon-200/25 transition group-hover:bg-moon-200 group-hover:text-night-950">
                           <Play className="ml-0.5 h-3 w-3 fill-current" aria-hidden="true" />
                         </span>
                       </span>
@@ -631,7 +617,6 @@ export default function SleepTimer() {
                   ))}
                 </div>
 
-                {/* ── your sequences shelf ── */}
                 {customSequences.length > 0 && (
                   <div className="mt-5 space-y-2.5">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
@@ -686,7 +671,6 @@ export default function SleepTimer() {
                   </div>
                 )}
 
-                {/* ── builder ── */}
                 {building ? (
                   <form
                     onSubmit={(e) => {
@@ -716,7 +700,6 @@ export default function SleepTimer() {
                       <p className="text-[10px] uppercase tracking-[0.24em] text-moon-300/70">
                         the rooms, in order
                       </p>
-                      {/* quick fill — one tap gives every step the same length */}
                       <div className="flex items-center gap-1.5">
                         <span className="mr-0.5 text-[10px] tracking-wide text-mist-600">quick fill</span>
                         {[5, 10, 15, 20, 30].map((n) => (
