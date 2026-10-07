@@ -565,7 +565,9 @@ export const usePlayer = create<PlayerState>()(
         });
       },
 
-      cancelSequence: () => set({ sequence: null }),
+      cancelSequence: () => {
+        get().stopAll(false);
+      },
 
       saveSequence: (name, steps) => {
         const trimmed = name.trim().slice(0, 32);
